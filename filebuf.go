@@ -29,13 +29,13 @@ type FileBuffer struct {
 	root *Tree
 }
 
-func newMemBuffer(b []byte) FileBuf {
+func NewMemBuffer(b []byte) FileBuf {
 	d := newBufData(b)
 	t := newTree(d)
 	return &FileBuffer{root: t}
 }
 
-func newFileBuffer(f string) (FileBuf, error) {
+func NewFileBuffer(f string) (FileBuf, error) {
 	d, err := newFileData(f)
 	if err != nil {
 		return nil, err
@@ -56,11 +56,14 @@ func (fb *FileBuffer) Size() int64 {
 
 func (fb *FileBuffer) Dump() {
 	for n := fb.root.first(); n != nil; n = n.next() {
-		dunkdata(n)
+		b := make([]byte, n.data.Size())
+		n.data.ReadAt(b, 0)
+		fmt.Print(string(b))
 	}
 }
 
 func (fb *FileBuffer) InsertBytes(at int64, bs []byte) {
+	//XXX this won't allow extending a file by writing beyond its end
 	node, off := fb.root.get(at)
 	splay(node)
 	fb.root = node
@@ -206,7 +209,7 @@ func (f *fileData) AppendBytes(b []byte) {
 
 func (f *fileData) Split(at int64) (Data, Data) {
 	if at > f.size {
-		log.Fatal("fileData.Split: too bug!")
+		log.Fatal("fileData.Split: at > f.size")
 	}
 
 	l := *f
@@ -399,91 +402,15 @@ func splay(x *Tree) {
 	}
 }
 
-//Relabel the size fields on the tree
-//should be automatic! Only for hand-testing
-func resize(n *Tree) int64 {
-	if n == nil {
-		return 0
-	}
-	n.size = resize(n.left) + n.data.Size() + resize(n.right)
-	return n.size
-}
-
-//Set all parents right
-//should be automatic! Only for hand-testing
-func reparent(n *Tree) {
-	if n == nil {
-		return
-	}
-	if n.left != nil {
-		n.left.parent = n
-		reparent(n.left)
-	}
-	if n.right != nil {
-		n.right.parent = n
-		reparent(n.right)
-	}
-}
-
-func dunkdata(n *Tree) {
-	size := n.data.Size()
-	b := make([]byte, size)
-	read, err := n.data.ReadAt(b, 0)
-	if err != nil {
-		log.Fatal("dunkdata: whoopsie: ", err)
-	}
-	if int64(read) != size {
-		log.Fatal("dunkdata: read != size???") //is this even possible? no?
-	}
-	fmt.Print(string(b))
-}
-
 func main() {
-	fb, _ := newFileBuffer("hellofile.txt")
+	fb, _ := NewFileBuffer("hellofile.txt")
 	fb.InsertBytes(12, []byte("..."))
 	fb.InsertBytes(15, []byte("Here i come!!\n"))
 	fb.Dump()
-	//fb.InsertBytes(0, []byte(":)"))
-	//fb.Dump()
-	/*
-		b := newBufData([]byte("Hello, World"))
-		l, r := b.Split(5)
-		l.AppendBytes([]byte(" there"))
-		r.AppendBytes([]byte(". Here I Come!!"))
-		fmt.Println(string(l.data))
-		fmt.Println(string(r.data))
-	*/
 
-	/*
-		f, _ := newFileData("hellofile.txt")
-		l, r := f.Split(5)
-		fmt.Println(l)
-		fmt.Println(r)
-	*/
+	fb = NewMemBuffer([]byte("HelloWorld!!\n"))
+	fb.InsertBytes(5, []byte(", "))
+	fb.InsertBytes(15, []byte("Here I come! :)\n"))
+	fb.Dump()
 
-	/*
-		var testdata = []*Data{
-			newDataFromBuf([]byte("hello")),
-			newDataFromBuf([]byte(", ")),
-			newDataFromBuf([]byte("world")),
-			newDataFromBuf([]byte("!")),
-			newDataFromBuf([]byte("\nHere I Come!!\n")),
-		}
-
-		hellodata, _ := newDataFromFile("hellofile.txt")
-		hellodata.offset = 1
-		hellodata.size -= 1
-
-		var leftNode = &Tree{data: hellodata}
-		var rightNode = &Tree{data: testdata[2]}
-		var aNode = &Tree{left: leftNode, right: rightNode, data: testdata[1]}
-		var rrightNode = &Tree{data: testdata[4]}
-		var testTree = &Tree{left: aNode, right: rrightNode, data: testdata[3]}
-		reparent(testTree)
-		resize(testTree)
-		for n := testTree.first(); n != nil; n = n.next() {
-			//fmt.Println(n)
-			dunkdata(n)
-		}
-	*/
 }
