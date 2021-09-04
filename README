@@ -1,11 +1,7 @@
-A data structure for (hopefully) efficient file-editing operations like copy,
+A data structure for efficient file-editing operations like copy,
 paste and insertions.
 
 Maintain a tree, where each node is 'backed' by a buffer or a portion of a
 file.  Then editing operation such as deletions and insertions can be done
-efficiently by not changing the file or buffer, but rather by changing the
+efficiently, not by changing a file or buffer, but rather by modifying the
 tree-overlay.
-
-I've chosen to use a splay tree because for editing you could splay the node
-we're editing to the root.  This makes modifications easier because you're
-working on the root node.  Also splay trees are neat.
