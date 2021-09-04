@@ -9,33 +9,32 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"os"
 )
 
-type FileBuf interface {
-	ReadBuf(at int64, size int64) bytes.Buffer
-	Size() int64
-	Dump()
-	//Remove(at int64, length int64)
-	//Cut(at int64, length int64) FileBuf
-	//Copy(at int64, length int64) FileBuf
-	//Paste(at int64, buf *FileBuf)
-	InsertBytes(at int64, bs []byte)
-	//InsertByte(at int64, b byte)
-}
-
+/**************************************************************************
+ * A filebuffer supports Copy, Paste, Cut, Overwrite and Insert operations.
+ * Also on big files
+ */
 type FileBuffer struct {
 	root *Tree
 }
 
-func NewMemBuffer(b []byte) FileBuf {
+/*
+func (fb *FileBuffer) DumpGraph() {
+	buf := &bytes.Buffer{}
+	memviz.Map(buf, fb)
+	ioutil.WriteFile("graphdump", buf.Bytes(), 0644)
+}
+*/
+
+func NewMemBuffer(b []byte) *FileBuffer {
 	d := newBufData(b)
 	t := newTree(d)
 	return &FileBuffer{root: t}
 }
 
-func NewFileBuffer(f string) (FileBuf, error) {
+func NewFileBuffer(f string) (*FileBuffer, error) {
 	d, err := newFileData(f)
 	if err != nil {
 		return nil, err
@@ -44,64 +43,164 @@ func NewFileBuffer(f string) (FileBuf, error) {
 	return &FileBuffer{root: r}, nil
 }
 
-func (fb *FileBuffer) ReadBuf(at int64, size int64) bytes.Buffer {
+//Read size bytes starting at position at
+func (fb *FileBuffer) ReadBuf(offset int64, size int64) (bytes.Buffer, error) {
 	var buf bytes.Buffer
-	log.Fatal("TODO: implement FileBuffer.ReadBuf")
-	return buf
+	return buf, fmt.Errorf("FileBuffer.ReadBuf(): Not implemented yet")
 }
 
+//The size of the FileBuffer in bytes
 func (fb *FileBuffer) Size() int64 {
 	return fb.root.size
 }
 
+//Print contents to stdout
 func (fb *FileBuffer) Dump() {
 	for n := fb.root.first(); n != nil; n = n.next() {
 		b := make([]byte, n.data.Size())
 		n.data.ReadAt(b, 0)
 		fmt.Print(string(b))
 	}
+	fmt.Println()
 }
 
-func (fb *FileBuffer) InsertBytes(at int64, bs []byte) {
-	//XXX this won't allow extending a file by writing beyond its end
-	node, off := fb.root.get(at)
-	splay(node)
-	fb.root = node
+//Remove size bytes at offset
+func (fb *FileBuffer) Remove(offset int64, size int64) error {
+	_, err := fb.Cut(offset, size)
+	return err
+}
 
-	//split node if we can't append directly
-	if off != node.data.Size() {
-		ldata, rdata := node.data.Split(off)
+//Cut size bytes at offset
+func (fb *FileBuffer) Cut(offset int64, size int64) (*FileBuffer, error) {
+	fb.findBefore(offset)
+	cut := &FileBuffer{root: fb.root.right}
+	cut.root.setParent(nil)
+	cut.findBefore(size)
+	fb.root.setRight(cut.root.right)
+	cut.root.setRight(nil)
+	return cut, nil
+}
+
+//Copy size bytes at offset
+func (fb *FileBuffer) Copy(offset int64, size int64) (*FileBuffer, error) {
+	tmpCut, err := fb.Cut(offset, size)
+	if err != nil {
+		return nil, err
+	}
+
+	cpy := &FileBuffer{root: tmpCut.root.Copy()}
+	fb.Paste(offset, tmpCut)
+	return cpy, nil
+}
+
+//Paste buf at offset
+func (fb *FileBuffer) Paste(offset int64, paste *FileBuffer) {
+	fb.findBefore(offset)
+	extra := fb.root.right
+	newtree := paste.root.Copy()
+	fb.root.setRight(newtree)
+	fb.root = splay(fb.root.last())
+	fb.root.setRight(extra)
+}
+
+//0 <= offset <= fb.Size()
+func (fb *FileBuffer) find(offset int64) {
+	if offset < 0 {
+		panic("FileBuffer.find(): offset < 0")
+	} else if offset > fb.Size() {
+		panic("FileBuffer.find(): offset > filesize")
+	}
+	node, nodeOffset := fb.root.get(offset)
+	fb.root = splay(node)
+	if nodeOffset != 0 {
+		//Need to split this node
+		ldata, rdata := fb.root.data.Split(nodeOffset)
 		l := newTree(ldata)
 		r := newTree(rdata)
-		l.setLeft(node.left)
-		r.setRight(node.right)
-		l.setRight(r)
-		fb.root = l
+
+		l.setLeft(fb.root.left)
+		r.setRight(fb.root.right)
+		r.setLeft(l)
+		fb.root = r
 	}
-	//make sure we can append to the root node
-	if !fb.root.data.Appendable() {
-		data := newBufData([]byte{})
-		l_ := newTree(data)
-		l_.setRight(fb.root.right)
-		fb.root.setRight(nil)
-		l_.setLeft(fb.root)
-		fb.root = l_
-		fb.root.resetSize()
-	}
-	fb.root.data.AppendBytes(bs)
-	fb.root.resetSize()
 }
 
+//Set the root node to one that ends at offset (so we can append to it)
+func (fb *FileBuffer) findBefore(offset int64) {
+	var before *Tree
+	if offset >= fb.Size() {
+		before = fb.root.last()
+	} else {
+		fb.find(offset)
+		before = fb.root.prev()
+	}
+	if before == nil {
+		before = newTree(newBufData([]byte{}))
+		fb.root.setLeft(before)
+	}
+	fb.root = splay(before)
+}
+
+func (fb *FileBuffer) InsertBytes(offset int64, bs []byte) error {
+	if offset < 0 {
+		return fmt.Errorf("FileBuffer.Insertbytes offset < 0")
+	} else if offset > fb.Size() {
+		return fmt.Errorf("FileBuffer.Insertbytes(): offset > FileBuffer.Size()")
+	}
+
+	fb.findBefore(offset)
+	fb.makeAppendable()
+	fb.root.data.AppendBytes(bs)
+	fb.root.resetSize()
+	return nil
+}
+
+func (fb *FileBuffer) InsertByte(offset int64, b byte) error {
+	if offset < 0 {
+		return fmt.Errorf("FileBuffer.Insertbytes offset < 0")
+	} else if offset > fb.Size() {
+		return fmt.Errorf("FileBuffer.Insertbytes(): offset > FileBuffer.Size()")
+	}
+
+	fb.findBefore(offset)
+	fb.makeAppendable()
+	fb.root.data.AppendByte(b)
+	fb.root.resetSize()
+	return nil
+}
+
+//Make the root node appendable, insert a new []buffer node if necessary
+func (fb *FileBuffer) makeAppendable() {
+	if !fb.root.data.Appendable() {
+		data := newBufData([]byte{})
+		newnode := newTree(data)
+		newnode.setRight(fb.root.right)
+
+		//this order is important because .set* functions do size updates
+		fb.root.setRight(nil)
+		newnode.setLeft(fb.root)
+
+		fb.root.resetSize()
+		fb.root = newnode
+
+	}
+}
+
+/***************************************************************************************
+ * Data is an interface for a piece of data that comes from a certain source
+ * For now we have 2 sources, a memory buffer ([]byte) or a file.
+ */
 type Data interface {
 	io.ReaderAt
 	Size() int64
 	Appendable() bool
 	AppendByte(b byte) //these functions are for editing
 	AppendBytes(b []byte)
-	Split(at int64) (Data, Data)
+	Split(offset int64) (Data, Data)
+	Copy() Data
 }
 
-//implements Data interface
+//[]Byte buffered data
 type bufData struct {
 	data []byte
 }
@@ -143,19 +242,25 @@ func (buf *bufData) AppendBytes(b []byte) {
 	buf.data = append(buf.data, b...)
 }
 
-func (buf *bufData) Split(at int64) (Data, Data) {
-	if at > buf.Size() {
-		log.Fatal("bufData.Split(): at > len(buf)")
+func (buf *bufData) Split(offset int64) (Data, Data) {
+	if offset > buf.Size() {
+		panic("bufData.Split(): offset > len(buf)")
 	}
-	if at == buf.Size() {
-		log.Fatal("bufData.Split(): at = len(buf)")
+	if offset == buf.Size() {
+		panic("bufData.Split(): offset = len(buf)")
 	}
-	newslice := make([]byte, at)
+	newslice := make([]byte, offset)
 	copy(newslice, buf.data)
-	return newBufData(newslice), newBufData(buf.data[at:])
+	return newBufData(newslice), newBufData(buf.data[offset:])
 }
 
-//implements Data interface
+func (buf *bufData) Copy() Data {
+	b := make([]byte, len(buf.data))
+	copy(b, buf.data)
+	return newBufData(b)
+}
+
+//File buffered Data
 type fileData struct {
 	file   io.ReaderAt
 	offset int64
@@ -200,27 +305,32 @@ func (f *fileData) Appendable() bool {
 }
 
 func (f *fileData) AppendByte(b byte) {
-	log.Fatal("fileData.AppendByte")
+	panic("fileData.AppendByte")
 }
 
 func (f *fileData) AppendBytes(b []byte) {
-	log.Fatal("fileData.AppendBytes")
+	panic("fileData.AppendBytes")
 }
 
-func (f *fileData) Split(at int64) (Data, Data) {
-	if at > f.size {
-		log.Fatal("fileData.Split: at > f.size")
+func (f *fileData) Split(offset int64) (Data, Data) {
+	if offset > f.size {
+		panic("fileData.Split: offset > f.size")
 	}
 
 	l := *f
-	l.size = at
+	l.size = offset
 
 	r := *f
-	r.offset = at
-	r.size -= at
+	r.offset = offset
+	r.size -= offset
 	return &l, &r
 }
 
+func (f *fileData) Copy() Data {
+	return f
+}
+
+/* A binary tree that holds Data */
 type Tree struct {
 	left, right, parent *Tree
 	data                Data
@@ -230,6 +340,24 @@ type Tree struct {
 func newTree(d Data) *Tree {
 	return &Tree{data: d, size: d.Size()}
 }
+
+//Copy this tree
+func (t *Tree) Copy() *Tree {
+	n := *t
+	n.data = n.data.Copy()
+	if n.left != nil {
+		n.left = n.left.Copy()
+		n.left.parent = &n
+	}
+	if n.right != nil {
+		n.right = n.right.Copy()
+		n.right.parent = &n
+	}
+	return &n
+}
+
+/* The set{Left, Right, Parent} functions should be used,
+ * because they take into account updating the size field */
 
 func (t *Tree) setLeft(l *Tree) {
 	t.left = l
@@ -250,9 +378,7 @@ func (t *Tree) setRight(r *Tree) {
 func (t *Tree) setParent(p *Tree) {
 	t.parent = p
 	if t.parent != nil {
-		if p.left != t && p.right != t {
-			log.Fatal("setParent(): not a child")
-		}
+		t.parent.resetSize()
 	}
 }
 
@@ -260,6 +386,7 @@ func (t *Tree) resetSize() {
 	t.size = treesize(t.left) + t.data.Size() + treesize(t.right)
 }
 
+//helper function to query t.size, return 0 on t == nil
 func treesize(t *Tree) int64 {
 	if t != nil {
 		return t.size
@@ -267,7 +394,6 @@ func treesize(t *Tree) int64 {
 	return 0
 }
 
-//tree queries
 func (node *Tree) first() *Tree {
 	n := node
 	for n.left != nil {
@@ -284,7 +410,6 @@ func (node *Tree) last() *Tree {
 	return n
 }
 
-//return successor of current node.
 func (node *Tree) next() *Tree {
 	n := node
 	if n.right != nil {
@@ -298,7 +423,6 @@ func (node *Tree) next() *Tree {
 	return n
 }
 
-//return predecessor of current node
 func (node *Tree) prev() *Tree {
 	n := node
 	if n.left != nil {
@@ -312,17 +436,17 @@ func (node *Tree) prev() *Tree {
 	return n
 }
 
-//get the node that contains the requested offset and the offset in this node
-func (node *Tree) get(at int64) (*Tree, int64) {
-	if at > node.size {
-		log.Fatal("Tree.get; at > node.size")
+//get the node that contains the requested offset
+func (node *Tree) get(offset int64) (*Tree, int64) {
+	if offset > node.size {
+		panic("Tree.get; offset > node.size")
 	}
-	offsetInNode := at - treesize(node.left)
+	offsetInNode := offset - treesize(node.left)
 	nodeSize := node.data.Size()
 	switch {
 	case offsetInNode < 0:
-		return node.left.get(at)
-	case offsetInNode <= nodeSize:
+		return node.left.get(offset)
+	case offsetInNode < nodeSize:
 		return node, offsetInNode
 	default:
 		return node.right.get(offsetInNode - nodeSize)
@@ -359,6 +483,14 @@ func rotateLeft(x *Tree) {
 	x.setParent(y)
 }
 
+/* Cool ansi art illustration:
+ *                        x
+ *         y             / \
+ *        / \    <--    y   c
+ *       a   x         / \
+ *          / \       a   b
+ *         b   c
+ */
 func rotateRight(x *Tree) {
 	y := x.left
 	if y != nil {
@@ -378,7 +510,7 @@ func rotateRight(x *Tree) {
 }
 
 //see https://en.wikipedia.org/wiki/Splay_tree
-func splay(x *Tree) {
+func splay(x *Tree) *Tree {
 	for x.parent != nil {
 		if x.parent.parent == nil {
 			if x == x.parent.left {
@@ -400,17 +532,33 @@ func splay(x *Tree) {
 			rotateRight(x.parent)
 		}
 	}
+	return x
 }
 
 func main() {
-	fb, _ := NewFileBuffer("hellofile.txt")
-	fb.InsertBytes(12, []byte("..."))
-	fb.InsertBytes(15, []byte("Here i come!!\n"))
+	fb := NewMemBuffer([]byte("Hello World."))
+	h, _ := fb.Cut(0, 5) //Hello
+	h.InsertByte(5, ' ')
+	h.Paste(0, h)
+	h.Paste(0, h)
+	h.Paste(0, h)
+	h.Paste(0, h)
+	h.Paste(0, h)
+	fb.Paste(0, h)
 	fb.Dump()
 
-	fb = NewMemBuffer([]byte("HelloWorld!!\n"))
-	fb.InsertBytes(5, []byte(", "))
-	fb.InsertBytes(15, []byte("Here I come! :)\n"))
-	fb.Dump()
+	/*
+		fb, _ := NewFileBuffer("MEGAFILE")
+		c, _ := fb.Cut(2208301400, 3)
+		fb.InsertBytes(2208301400, []byte("Whoooo"))
+		fb.Paste(2208301403, c)
+		c, _ = fb.Cut(2208301400, 10)
+		c.Dump()
 
+		c, _ = fb.Cut(2, 3)
+		fb.InsertBytes(2, []byte("Whoooo"))
+		fb.Paste(5, c)
+		c, _ = fb.Cut(2, 10)
+		c.Dump()
+	*/
 }
