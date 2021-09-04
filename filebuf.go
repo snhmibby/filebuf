@@ -17,7 +17,7 @@ import (
  * Also on big files
  */
 type FileBuffer struct {
-	root *Tree
+	root *tree
 }
 
 /*
@@ -127,7 +127,7 @@ func (fb *FileBuffer) find(offset int64) {
 
 //Set the root node to one that ends at offset (so we can append to it)
 func (fb *FileBuffer) findBefore(offset int64) {
-	var before *Tree
+	var before *tree
 	if offset >= fb.Size() {
 		before = fb.root.last()
 	} else {
@@ -190,14 +190,14 @@ func (fb *FileBuffer) makeAppendable() {
  * Data is an interface for a piece of data that comes from a certain source
  * For now we have 2 sources, a memory buffer ([]byte) or a file.
  */
-type Data interface {
+type data interface {
 	io.ReaderAt
 	Size() int64
 	Appendable() bool
 	AppendByte(b byte) //these functions are for editing
 	AppendBytes(b []byte)
-	Split(offset int64) (Data, Data)
-	Copy() Data
+	Split(offset int64) (data, data)
+	Copy() data
 }
 
 //[]Byte buffered data
@@ -242,7 +242,7 @@ func (buf *bufData) AppendBytes(b []byte) {
 	buf.data = append(buf.data, b...)
 }
 
-func (buf *bufData) Split(offset int64) (Data, Data) {
+func (buf *bufData) Split(offset int64) (data, data) {
 	if offset > buf.Size() {
 		panic("bufData.Split(): offset > len(buf)")
 	}
@@ -254,13 +254,13 @@ func (buf *bufData) Split(offset int64) (Data, Data) {
 	return newBufData(newslice), newBufData(buf.data[offset:])
 }
 
-func (buf *bufData) Copy() Data {
+func (buf *bufData) Copy() data {
 	b := make([]byte, len(buf.data))
 	copy(b, buf.data)
 	return newBufData(b)
 }
 
-//File buffered Data
+//File buffered data
 type fileData struct {
 	file   io.ReaderAt
 	offset int64
@@ -312,7 +312,7 @@ func (f *fileData) AppendBytes(b []byte) {
 	panic("fileData.AppendBytes")
 }
 
-func (f *fileData) Split(offset int64) (Data, Data) {
+func (f *fileData) Split(offset int64) (data, data) {
 	if offset > f.size {
 		panic("fileData.Split: offset > f.size")
 	}
@@ -326,23 +326,23 @@ func (f *fileData) Split(offset int64) (Data, Data) {
 	return &l, &r
 }
 
-func (f *fileData) Copy() Data {
+func (f *fileData) Copy() data {
 	return f
 }
 
 /* A binary tree that holds Data */
-type Tree struct {
-	left, right, parent *Tree
-	data                Data
+type tree struct {
+	left, right, parent *tree
+	data                data
 	size                int64 //left.size + data.size + right.size
 }
 
-func newTree(d Data) *Tree {
-	return &Tree{data: d, size: d.Size()}
+func newTree(d data) *tree {
+	return &tree{data: d, size: d.Size()}
 }
 
 //Copy this tree
-func (t *Tree) Copy() *Tree {
+func (t *tree) Copy() *tree {
 	n := *t
 	n.data = n.data.Copy()
 	if n.left != nil {
@@ -359,7 +359,7 @@ func (t *Tree) Copy() *Tree {
 /* The set{Left, Right, Parent} functions should be used,
  * because they take into account updating the size field */
 
-func (t *Tree) setLeft(l *Tree) {
+func (t *tree) setLeft(l *tree) {
 	t.left = l
 	if t.left != nil {
 		t.left.parent = t
@@ -367,7 +367,7 @@ func (t *Tree) setLeft(l *Tree) {
 	t.resetSize()
 }
 
-func (t *Tree) setRight(r *Tree) {
+func (t *tree) setRight(r *tree) {
 	t.right = r
 	if t.right != nil {
 		t.right.parent = t
@@ -375,26 +375,26 @@ func (t *Tree) setRight(r *Tree) {
 	t.resetSize()
 }
 
-func (t *Tree) setParent(p *Tree) {
+func (t *tree) setParent(p *tree) {
 	t.parent = p
 	if t.parent != nil {
 		t.parent.resetSize()
 	}
 }
 
-func (t *Tree) resetSize() {
+func (t *tree) resetSize() {
 	t.size = treesize(t.left) + t.data.Size() + treesize(t.right)
 }
 
 //helper function to query t.size, return 0 on t == nil
-func treesize(t *Tree) int64 {
+func treesize(t *tree) int64 {
 	if t != nil {
 		return t.size
 	}
 	return 0
 }
 
-func (node *Tree) first() *Tree {
+func (node *tree) first() *tree {
 	n := node
 	for n.left != nil {
 		n = n.left
@@ -402,7 +402,7 @@ func (node *Tree) first() *Tree {
 	return n
 }
 
-func (node *Tree) last() *Tree {
+func (node *tree) last() *tree {
 	n := node
 	for n.right != nil {
 		n = n.right
@@ -410,7 +410,7 @@ func (node *Tree) last() *Tree {
 	return n
 }
 
-func (node *Tree) next() *Tree {
+func (node *tree) next() *tree {
 	n := node
 	if n.right != nil {
 		n = n.right.first()
@@ -423,7 +423,7 @@ func (node *Tree) next() *Tree {
 	return n
 }
 
-func (node *Tree) prev() *Tree {
+func (node *tree) prev() *tree {
 	n := node
 	if n.left != nil {
 		n = n.left.last()
@@ -437,9 +437,9 @@ func (node *Tree) prev() *Tree {
 }
 
 //get the node that contains the requested offset
-func (node *Tree) get(offset int64) (*Tree, int64) {
+func (node *tree) get(offset int64) (*tree, int64) {
 	if offset > node.size {
-		panic("Tree.get; offset > node.size")
+		panic("tree.get; offset > node.size")
 	}
 	offsetInNode := offset - treesize(node.left)
 	nodeSize := node.data.Size()
@@ -464,7 +464,7 @@ func (node *Tree) get(offset int64) (*Tree, int64) {
  *          / \       a   b
  *         b   c
  */
-func rotateLeft(x *Tree) {
+func rotateLeft(x *tree) {
 	y := x.right
 	if y != nil {
 		x.setRight(y.left)
@@ -491,7 +491,7 @@ func rotateLeft(x *Tree) {
  *          / \       a   b
  *         b   c
  */
-func rotateRight(x *Tree) {
+func rotateRight(x *tree) {
 	y := x.left
 	if y != nil {
 		x.setLeft(y.right)
@@ -510,7 +510,7 @@ func rotateRight(x *Tree) {
 }
 
 //see https://en.wikipedia.org/wiki/Splay_tree
-func splay(x *Tree) *Tree {
+func splay(x *tree) *tree {
 	for x.parent != nil {
 		if x.parent.parent == nil {
 			if x == x.parent.left {
