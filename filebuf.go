@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"golang.org/x/exp/mmap"
 )
 
 //implements io.ReadWriteSeeker
@@ -307,7 +309,7 @@ func (buf *bufData) Copy() data {
 
 //File buffered data
 type fileData struct {
-	file   *os.File
+	file   io.ReaderAt
 	offset int64
 	size   int64
 }
@@ -315,20 +317,29 @@ type fileData struct {
 //it might not be a bad idea to mmap HUGE files on 64bit systems?
 //i mean it is 2021, right?
 func newFileData(fname string) (*fileData, error) {
-	f, err := os.Open(fname)
-	if err != nil {
-		return nil, err
+	var f fileData
+	var use_mmap = true
+	if use_mmap {
+		file, err := mmap.Open(fname)
+		if err != nil {
+			return nil, err
+		}
+		f.file = file
+		f.size = int64(file.Len())
+	} else {
+		file, err := os.Open(fname)
+		if err != nil {
+			return nil, err
+		}
+		stat, err := file.Stat()
+		if err != nil {
+			file.Close()
+			return nil, err
+		}
+		f.file = file
+		f.size = stat.Size()
 	}
-	stat, err := f.Stat()
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	return &fileData{
-		file:   f,
-		offset: 0,
-		size:   stat.Size(),
-	}, nil
+	return &f, nil
 }
 
 func (f *fileData) ReadAt(p []byte, off int64) (int, error) {
