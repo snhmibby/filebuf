@@ -19,6 +19,30 @@ type FileBuffer struct {
 	offset int64 //to implement io.ReaderSeeker
 }
 
+//Use byte array b as source for a filebuffer
+func NewMemBuffer(b []byte) *FileBuffer {
+	d := newBufData(b)
+	t := newTree(d)
+	return &FileBuffer{root: t}
+}
+
+//Open file 'f' as source for a filebuffer
+//As long as you are using buffers predicated on 'f',
+//you probably shouldn't change the file on disk
+func NewFileBuffer(f string) (*FileBuffer, error) {
+	d, err := newFileData(f)
+	if err != nil {
+		return nil, err
+	}
+	r := newTree(d)
+	return &FileBuffer{root: r}, nil
+}
+
+//The size of the FileBuffer in bytes
+func (fb *FileBuffer) Size() int64 {
+	return fb.root.size
+}
+
 //io.Seeker
 func (fb *FileBuffer) Seek(offset int64, whence int) (int64, error) {
 	switch {
@@ -71,33 +95,6 @@ func (fb *FileBuffer) Read(p []byte) (int, error) {
 	return read, err
 }
 
-/*
-func (fb *FileBuffer) DumpGraph() {
-	buf := &bytes.Buffer{}
-	memviz.Map(buf, fb)
-	ioutil.WriteFile("graphdump", buf.Bytes(), 0644)
-}
-*/
-
-//Use byte array b as source for a filebuffer
-func NewMemBuffer(b []byte) *FileBuffer {
-	d := newBufData(b)
-	t := newTree(d)
-	return &FileBuffer{root: t}
-}
-
-//Open file 'f' as source for a filebuffer
-//As long as you are using buffers predicated on 'f',
-//you probably shouldn't change the file on disk
-func NewFileBuffer(f string) (*FileBuffer, error) {
-	d, err := newFileData(f)
-	if err != nil {
-		return nil, err
-	}
-	r := newTree(d)
-	return &FileBuffer{root: r}, nil
-}
-
 //Read size bytes starting at position at
 func (fb *FileBuffer) ReadBuf(offset int64, size int64) (*bytes.Buffer, error) {
 	var buf bytes.Buffer
@@ -108,12 +105,7 @@ func (fb *FileBuffer) ReadBuf(offset int64, size int64) (*bytes.Buffer, error) {
 	return &buf, err
 }
 
-//The size of the FileBuffer in bytes
-func (fb *FileBuffer) Size() int64 {
-	return fb.root.size
-}
-
-//Print contents to stdout
+//Dump contents to stdout
 func (fb *FileBuffer) Dump() {
 	for n := fb.root.first(); n != nil; n = n.next() {
 		b := make([]byte, n.data.Size())
