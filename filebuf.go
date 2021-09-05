@@ -99,9 +99,13 @@ func NewFileBuffer(f string) (*FileBuffer, error) {
 }
 
 //Read size bytes starting at position at
-func (fb *FileBuffer) ReadBuf(offset int64, size int64) (bytes.Buffer, error) {
+func (fb *FileBuffer) ReadBuf(offset int64, size int64) (*bytes.Buffer, error) {
 	var buf bytes.Buffer
-	return buf, fmt.Errorf("FileBuffer.ReadBuf(): Not implemented yet")
+	oldoffset := fb.offset
+	fb.offset = offset
+	_, err := io.CopyN(&buf, fb, size)
+	fb.offset = oldoffset
+	return &buf, err
 }
 
 //The size of the FileBuffer in bytes
