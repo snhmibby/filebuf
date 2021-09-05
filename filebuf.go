@@ -1,9 +1,17 @@
-//Package for efficient Cut, Copy, Paste and Insertion operations on big files
+//Package for efficient editing operations on big files
 package filebuf
 
 /* TODO:
  * - figure out some caching scheme to not read from the file too much
- * - maybe allow for combining nodes if possible
+ *   maybe just mmap whole files?
+ *   or mmap the file in chunks
+ *   either way, mmap seems a nice solution because it offloads the caching and
+ *   swapping out problem to the OS Golang doesn't have weak references or some
+ *   such so the GC can't be utilized for swapping chunks out
+ * - allow for combining nodes if possible
+ *   having many small nodes eats memory and grows the tree so everyting bogs down.
+ *   having bigger nodes make it a lot faster.
+ *   then again splitting a bigger node possibly involves lots of copying
  */
 
 import (
@@ -116,32 +124,27 @@ func (fb *FileBuffer) Dump() {
 }
 
 //Remove size bytes at offset
-func (fb *FileBuffer) Remove(offset int64, size int64) error {
-	_, err := fb.Cut(offset, size)
-	return err
+func (fb *FileBuffer) Remove(offset int64, size int64) {
+	fb.Cut(offset, size)
 }
 
 //Cut size bytes at offset
-func (fb *FileBuffer) Cut(offset int64, size int64) (*FileBuffer, error) {
+func (fb *FileBuffer) Cut(offset int64, size int64) *FileBuffer {
 	fb.findBefore(offset)
 	cut := &FileBuffer{root: fb.root.right}
 	cut.root.setParent(nil)
 	cut.findBefore(size)
 	fb.root.setRight(cut.root.right)
 	cut.root.setRight(nil)
-	return cut, nil
+	return cut
 }
 
 //Copy size bytes at offset
-func (fb *FileBuffer) Copy(offset int64, size int64) (*FileBuffer, error) {
-	tmpCut, err := fb.Cut(offset, size)
-	if err != nil {
-		return nil, err
-	}
-
+func (fb *FileBuffer) Copy(offset int64, size int64) *FileBuffer {
+	tmpCut := fb.Cut(offset, size)
 	cpy := &FileBuffer{root: tmpCut.root.Copy()}
 	fb.Paste(offset, tmpCut)
-	return cpy, nil
+	return cpy
 }
 
 //Paste buf at offset
@@ -168,7 +171,6 @@ func (fb *FileBuffer) find(offset int64) {
 		ldata, rdata := fb.root.data.Split(nodeOffset)
 		l := newTree(ldata)
 		r := newTree(rdata)
-
 		l.setLeft(fb.root.left)
 		r.setRight(fb.root.right)
 		r.setLeft(l)
@@ -261,7 +263,6 @@ func newBufData(b []byte) *bufData {
 }
 
 func (buf *bufData) ReadAt(p []byte, off int64) (int, error) {
-	//?can be implemented with copy(p, buf.data[off:]) or some such?
 	var bsize = len(buf.data)
 	if int(off) >= bsize {
 		return 0, io.EOF
@@ -311,6 +312,8 @@ type fileData struct {
 	size   int64
 }
 
+//it might not be a bad idea to mmap HUGE files on 64bit systems?
+//i mean it is 2021, right?
 func newFileData(fname string) (*fileData, error) {
 	f, err := os.Open(fname)
 	if err != nil {
