@@ -2,12 +2,6 @@
 package filebuf
 
 /* TODO:
- * - figure out some caching scheme to not read from the file too much
- *   maybe just mmap whole files?
- *   or mmap the file in chunks
- *   either way, mmap seems a nice solution because it offloads the caching and
- *   swapping out problem to the OS Golang doesn't have weak references or some
- *   such so the GC can't be utilized for swapping chunks out
  * - allow for combining nodes if possible
  *   having many small nodes eats memory and grows the tree so everyting bogs down.
  *   having bigger nodes make it a lot faster.
