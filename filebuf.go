@@ -1,4 +1,5 @@
-package main
+//Package for efficient Cut, Copy, Paste and Insertion operations on big files
+package filebuf
 
 /* TODO:
  * - figure out some caching scheme to not read from the file too much
@@ -12,12 +13,62 @@ import (
 	"os"
 )
 
-/**************************************************************************
- * A filebuffer supports Copy, Paste, Cut, Overwrite and Insert operations.
- * Also on big files
- */
+//implements io.ReadWriteSeeker
 type FileBuffer struct {
-	root *tree
+	root   *tree
+	offset int64 //to implement io.ReaderSeeker
+}
+
+//io.Seeker
+func (fb *FileBuffer) Seek(offset int64, whence int) (int64, error) {
+	switch {
+	case whence == io.SeekStart:
+		fb.offset = offset
+	case whence == io.SeekCurrent:
+		fb.offset += offset
+	case whence == io.SeekEnd:
+		fb.offset = fb.Size() + offset
+	}
+	if fb.offset < 0 || fb.offset > fb.Size() {
+		//actually fb.offset > fb.Size() should be legal, but meh
+		return fb.offset, fmt.Errorf("FileBuffer.Seek() bad offset")
+	}
+	return fb.offset, nil
+}
+
+//io.Writer
+func (fb *FileBuffer) Write(p []byte) (int, error) {
+	if fb.offset > fb.Size() {
+		return 0, io.EOF
+	}
+	fb.Remove(fb.offset, int64(len(p)))
+	fb.InsertBytes(fb.offset, p)
+	return len(p), nil
+}
+
+//io.Reader
+func (fb *FileBuffer) Read(p []byte) (int, error) {
+	var err error
+
+	if fb.offset >= fb.Size() {
+		return 0, io.EOF
+	}
+
+	fb.find(fb.offset)
+	toread := len(p)
+	read := 0
+	node := fb.root
+	for node != nil && toread > 0 {
+		n, _ := node.data.ReadAt(p[read:], 0)
+		read += n
+		toread -= n
+		node = node.next()
+	}
+	if node == nil {
+		err = io.EOF
+	}
+	fb.offset += int64(read)
+	return read, err
 }
 
 /*
@@ -28,12 +79,16 @@ func (fb *FileBuffer) DumpGraph() {
 }
 */
 
+//Use byte array b as source for a filebuffer
 func NewMemBuffer(b []byte) *FileBuffer {
 	d := newBufData(b)
 	t := newTree(d)
 	return &FileBuffer{root: t}
 }
 
+//Open file 'f' as source for a filebuffer
+//As long as you are using buffers predicated on 'f',
+//you probably shouldn't change the file on disk
 func NewFileBuffer(f string) (*FileBuffer, error) {
 	d, err := newFileData(f)
 	if err != nil {
@@ -211,19 +266,12 @@ func newBufData(b []byte) *bufData {
 
 func (buf *bufData) ReadAt(p []byte, off int64) (int, error) {
 	//?can be implemented with copy(p, buf.data[off:]) or some such?
-	var e error = nil
-	var psize = len(p)
 	var bsize = len(buf.data)
-	if int(off) > bsize {
+	if int(off) >= bsize {
 		return 0, io.EOF
 	}
-	canread := bsize - int(off)
-	if psize < canread {
-		canread = psize
-		e = io.EOF
-	}
-	copy(p, buf.data[off:])
-	return canread, e
+	n := copy(p, buf.data[off:])
+	return n, nil
 }
 
 func (buf *bufData) Size() int64 {
@@ -262,7 +310,7 @@ func (buf *bufData) Copy() data {
 
 //File buffered data
 type fileData struct {
-	file   io.ReaderAt
+	file   *os.File
 	offset int64
 	size   int64
 }
@@ -290,9 +338,6 @@ func (f *fileData) ReadAt(p []byte, off int64) (int, error) {
 		b = p[:f.size]
 	}
 	n, err := f.file.ReadAt(b, f.offset+off)
-	if int64(n) != f.size {
-		err = io.EOF
-	}
 	return n, err
 }
 
@@ -533,32 +578,4 @@ func splay(x *tree) *tree {
 		}
 	}
 	return x
-}
-
-func main() {
-	fb := NewMemBuffer([]byte("Hello World."))
-	h, _ := fb.Cut(0, 5) //Hello
-	h.InsertByte(5, ' ')
-	h.Paste(0, h)
-	h.Paste(0, h)
-	h.Paste(0, h)
-	h.Paste(0, h)
-	h.Paste(0, h)
-	fb.Paste(0, h)
-	fb.Dump()
-
-	/*
-		fb, _ := NewFileBuffer("MEGAFILE")
-		c, _ := fb.Cut(2208301400, 3)
-		fb.InsertBytes(2208301400, []byte("Whoooo"))
-		fb.Paste(2208301403, c)
-		c, _ = fb.Cut(2208301400, 10)
-		c.Dump()
-
-		c, _ = fb.Cut(2, 3)
-		fb.InsertBytes(2, []byte("Whoooo"))
-		fb.Paste(5, c)
-		c, _ = fb.Cut(2, 10)
-		c.Dump()
-	*/
 }
