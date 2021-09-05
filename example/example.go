@@ -2,10 +2,11 @@ package main
 
 import (
 	"io"
-	"os"
 
 	"github.com/snhmibby/filebuf"
 )
+
+//TODO: write tests
 
 func main() {
 	var fb *filebuf.FileBuffer
@@ -28,6 +29,12 @@ func main() {
 		fb.Dump()
 	*/
 
+	fb, _ = filebuf.NewFileBuffer("hellofile.txt")
+	//replace World by Hacks
+	fb.Seek(-6, io.SeekEnd)
+	fb.Write([]byte("Hacks"))
+	fb.Dump()
+
 	/*
 		fb, _ = filebuf.NewFileBuffer("hellofile.txt")
 		fb.InsertBytes(fb.Size(), []byte(":) Here I come!\n"))
@@ -45,15 +52,17 @@ func main() {
 		fmt.Printf("b[%d]:%s\n", len(b), b)
 	*/
 
-	//GIGAFILE is a few copies of the repeated "Hello World." above
-	//it is about 6GB
-	const szhello int64 = int64(len("Hello World.\n"))
-	const szcome int64 = int64(len("Here I Come!\n."))
-	buf := make([]byte, szhello)
-	fb, _ = filebuf.NewFileBuffer("GIGAFILE")
-	fb.Read(buf)
-	os.Stdout.Write(buf)
-	fb.Seek(-szcome, io.SeekEnd)
-	io.Copy(os.Stdout, fb)
+	/*
+		//GIGAFILE is a few copies of the repeated "Hello World." above
+		//it is about 6GB
+		const szhello int64 = int64(len("Hello World.\n"))
+		const szcome int64 = int64(len("Here I Come!\n."))
+		buf := make([]byte, szhello)
+		fb, _ = filebuf.NewFileBuffer("GIGAFILE")
+		fb.Read(buf)
+		os.Stdout.Write(buf)
+		fb.Seek(-szcome, io.SeekEnd)
+		io.Copy(os.Stdout, fb)
+	*/
 
 }

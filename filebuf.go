@@ -76,24 +76,24 @@ func (fb *FileBuffer) Write(p []byte) (int, error) {
 
 //io.Reader
 func (fb *FileBuffer) Read(p []byte) (int, error) {
+	//XXX might not be a bad idea to plug node-combining in here
 	var err error
-
 	if fb.offset >= fb.Size() {
 		return 0, io.EOF
 	}
-
 	fb.find(fb.offset)
 	toread := len(p)
 	read := 0
 	node := fb.root
 	for node != nil && toread > 0 {
-		n, _ := node.data.ReadAt(p[read:], 0)
+		var n int
+		n, err = node.data.ReadAt(p[read:], 0)
 		read += n
 		toread -= n
+		if err != nil {
+			break
+		}
 		node = node.next()
-	}
-	if node == nil {
-		err = io.EOF
 	}
 	fb.offset += int64(read)
 	return read, err
@@ -174,7 +174,8 @@ func (fb *FileBuffer) find(offset int64) {
 	}
 }
 
-//Set the root node to one that ends at offset (so we can append to it)
+//Set the root node to one that ends at offset
+//i.e. appending to the root node would write at offset
 func (fb *FileBuffer) findBefore(offset int64) {
 	var before *tree
 	if offset >= fb.Size() {
@@ -237,7 +238,7 @@ func (fb *FileBuffer) makeAppendable() {
 
 /***************************************************************************************
  * Data is an interface for a piece of data that comes from a certain source
- * For now we have 2 sources, a memory buffer ([]byte) or a file.
+ * For now we have 2 sources, a memory buffer ([]byte) or a file (io.ReaderAt)
  */
 type data interface {
 	io.ReaderAt
@@ -505,7 +506,7 @@ func (node *tree) get(offset int64) (*tree, int64) {
 //splay functions from wikipedia
 //take care to adjust the size fields
 
-/* Cool ansi art illustration:
+/* Cool ascii art illustration:
  *                        y
  *         x             / \
  *        / \    -->    x   c
@@ -532,7 +533,7 @@ func rotateLeft(x *tree) {
 	x.setParent(y)
 }
 
-/* Cool ansi art illustration:
+/* Cool ascii art illustration:
  *                        x
  *         y             / \
  *        / \    <--    y   c
