@@ -175,7 +175,7 @@ func (fb *FileBuffer) find(offset int64) {
 }
 
 //Set the root node to one that ends at offset
-//i.e. appending to the root node would write at offset
+//i.e. appending to the root node would insert at offset
 func (fb *FileBuffer) findBefore(offset int64) {
 	var before *tree
 	if offset >= fb.Size() {

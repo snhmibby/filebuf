@@ -1,4 +1,4 @@
-module github.com/snhmibby/filebuf
+module github.com/snhmibby/go-filebuf
 
 go 1.17
 
