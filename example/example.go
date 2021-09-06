@@ -1,8 +1,6 @@
 package main
 
 import (
-	"io"
-
 	"github.com/snhmibby/filebuf"
 )
 
@@ -29,11 +27,41 @@ func main() {
 		fb.Dump()
 	*/
 
+	/*
+		fb, _ = filebuf.NewFileBuffer("hellofile.txt")
+		//replace World by Hacks
+		fb.Seek(6, io.SeekStart)
+		fb.Write([]byte("Hacks"))
+		c := fb.Cut(7, 5)
+		c.Dump()
+		fmt.Println()
+		fb.Dump()
+	*/
+
+	/*
+		fb = filebuf.NewMemBuffer([]byte("abc"))
+		c := fb.Cut(1, 1)
+		fb.Dump()
+		c.Dump()
+		fb.Paste(1, c)
+		fb.Dump()
+		c = fb.Cut(1, 2)
+		fb.Dump()
+		c.Dump()
+	*/
+	//fb = filebuf.NewMemBuffer([]byte("Hello, World!"))
 	fb, _ = filebuf.NewFileBuffer("hellofile.txt")
-	//replace World by Hacks
-	fb.Seek(-6, io.SeekEnd)
-	fb.Write([]byte("Hacks"))
-	fb.Dump()
+	hello := fb.Cut(0, 5)
+	world := fb.Cut(2, 6)
+	hello.Dump()
+	world.Dump()
+
+	hw := filebuf.NewMemBuffer([]byte{})
+	hw.Paste(0, hello)
+	hw.Paste(6, world)
+	hw.InsertBytes(5, []byte(", "))
+	hw.Remove(4, 8)
+	hw.Dump()
 
 	/*
 		fb, _ = filebuf.NewFileBuffer("hellofile.txt")

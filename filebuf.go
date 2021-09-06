@@ -366,12 +366,13 @@ func (f *fileData) Split(offset int64) (data, data) {
 	if offset > f.size {
 		panic("fileData.Split: offset > f.size")
 	}
+	var l, r fileData
 
-	l := *f
+	l = *f
 	l.size = offset
 
-	r := *f
-	r.offset = offset
+	r = *f
+	r.offset += offset
 	r.size -= offset
 	return &l, &r
 }
