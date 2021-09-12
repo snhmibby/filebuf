@@ -1,7 +1,20 @@
 //Package for efficient editing operations on big files
 package filebuf
 
+/* A FileBuffer maintains a representation of a buffer in a splay tree,
+   where each node in the tree represents a portion of the buffer.
+   The data in a node can be either a portion of a file or a byte slice.
+   Cut, Copy and Paste operations thus only copy a tree, not an entire slice.
+   Insert becomes (possibly) splitting a node and appending to a slice.
+
+   Saving to a file becomes a bit cumbersome to do efficiently and is not implemented.
+   You can io.Copy the buffer to a temporary file and rename it to the original.
+   This serializes the entire buffer and is not necessary and slow :((
+*/
+
 /* TODO:
+ * - maintain undo/redo queue
+ * - smart writing back to original file (.Save()... operation)
  * - allow for combining nodes if possible
  *   having many small nodes eats memory and grows the tree so everyting bogs down.
  *   having bigger nodes make it a lot faster.
@@ -95,7 +108,11 @@ func (fb *FileBuffer) Read(p []byte) (int, error) {
 		}
 		node = node.next()
 	}
-	fb.offset += int64(read)
+	if read == 0 && read < len(p) {
+		err = io.EOF
+	} else {
+		fb.offset += int64(read)
+	}
 	return read, err
 }
 
@@ -239,6 +256,7 @@ func (fb *FileBuffer) makeAppendable() {
 /***************************************************************************************
  * Data is an interface for a piece of data that comes from a certain source
  * For now we have 2 sources, a memory buffer ([]byte) or a file (io.ReaderAt)
+ * TODO: data.Combine(another *Data) *Data {...} kind of functionality
  */
 type data interface {
 	io.ReaderAt

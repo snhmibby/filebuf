@@ -1,6 +1,5 @@
 A Golang data structure/library for efficient file-editing operations on large files.
 
-
 Maintain a tree, where each node is 'backed' by a buffer or a portion
 of a file.  Then editing operation such as deletions and insertions can
 be done efficiently, not by changing a file or buffer, but rather by
