@@ -1,20 +1,36 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"os"
 
-	"github.com/snhmibby/filebuf"
+	B "github.com/snhmibby/filebuf"
 )
 
-//TODO: write tests
+const testfile_path = "TESTFILE"
+
+func emptyTestFile() *B.FileBuffer {
+	os.Create(testfile_path)
+	b, err := B.NewFileBuffer(testfile_path)
+	if err != nil {
+		log.Fatal(`NewFileBuffer("TESTFILE") failed, err = `, err)
+		return nil
+	}
+	return b
+}
+
+var testdata = []byte(`Hello World!
+this is some testdata.
+this is the third line.
+`)
 
 func main() {
-	var fb *filebuf.FileBuffer
+	var fb *B.FileBuffer
 	/*
 		//grow a big file by repeated pasting
-		fb = filebuf.NewMemBuffer([]byte("Hello World.\n"))
+		fb = B.NewMemBuffer([]byte("Hello World.\n"))
 		for i := 0; i < 20; i++ {
 			fb.Paste(0, fb)
 		}
@@ -32,7 +48,7 @@ func main() {
 	*/
 
 	/*
-		fb, _ = filebuf.NewFileBuffer("hellofile.txt")
+		fb, _ = B.NewFileBuffer("hellofile.txt")
 		//replace World by Hacks
 		fb.Seek(6, io.SeekStart)
 		fb.Write([]byte("Hacks"))
@@ -43,7 +59,7 @@ func main() {
 	*/
 
 	/*
-		fb = filebuf.NewMemBuffer([]byte("abc"))
+		fb = B.NewMemBuffer([]byte("abc"))
 		c := fb.Cut(1, 1)
 		fb.Dump()
 		c.Dump()
@@ -53,15 +69,15 @@ func main() {
 		fb.Dump()
 		c.Dump()
 	*/
-	//fb = filebuf.NewMemBuffer([]byte("Hello, World!"))
+	//fb = B.NewMemBuffer([]byte("Hello, World!"))
 	/*
-		fb, _ = filebuf.NewFileBuffer("hellofile.txt")
+		fb, _ = B.NewFileBuffer("hellofile.txt")
 		hello := fb.Cut(0, 5)
 		world := fb.Cut(2, 6)
 		hello.Dump()
 		world.Dump()
 
-		hw := filebuf.NewMemBuffer([]byte{})
+		hw := B.NewMemBuffer([]byte{})
 		hw.Paste(0, hello)
 		hw.Paste(6, world)
 		hw.InsertBytes(5, []byte(", "))
@@ -71,7 +87,7 @@ func main() {
 	*/
 
 	/*
-		fb, _ = filebuf.NewFileBuffer("hellofile.txt")
+		fb, _ = B.NewFileBuffer("hellofile.txt")
 		fb.InsertBytes(fb.Size(), []byte(":) Here I come!\n"))
 		b, _ := io.ReadAll(fb)
 		fmt.Printf("b[%d]:%s\n", len(b), b)
@@ -87,18 +103,46 @@ func main() {
 		fmt.Printf("b[%d]:%s\n", len(b), b)
 	*/
 
-	//GIGAFILE is a few copies of the repeated "Hello World." above
-	//it is about 6GB
-	const szhello int64 = int64(len("Hello World.\n"))
-	const szcome int64 = int64(len("Here I Come!\n."))
-	buf := make([]byte, szhello)
-	fb, err := filebuf.NewFileBuffer("GIGAFILE")
-	if err != nil {
-		log.Fatal("example.go: Couldn't create filebuffer: ", err)
+	/*
+		//GIGAFILE is a few copies of the repeated "Hello World." above
+		//it is about 6GB
+		const szhello int64 = int64(len("Hello World.\n"))
+		const szcome int64 = int64(len("Here I Come!\n."))
+		buf := make([]byte, szhello)
+		fb, err := B.NewFileBuffer("GIGAFILE")
+		if err != nil {
+			log.Fatal("example.go: Couldn't create filebuffer: ", err)
+		}
+		fb.Read(buf)
+		os.Stdout.Write(buf)
+		fb.Seek(-szcome, io.SeekEnd)
+		io.Copy(os.Stdout, fb)
+		io.Copy(os.Stdout, fb)
+	*/
+	fb = emptyTestFile()
+	if fb == nil {
+		log.Fatal(`NewFileBuffer("TESTFILE"), no error but is 'nil'`)
 	}
-	fb.Read(buf)
-	os.Stdout.Write(buf)
-	fb.Seek(-szcome, io.SeekEnd)
-	io.Copy(os.Stdout, fb)
+	for i := 0; i < len(testdata); i++ {
+		n, err := fb.Write(testdata[i:+1])
+		if err != nil || n != 1 {
+			log.Fatal("TestNewMemBuf(): couldn't Write():")
+		}
+	}
+
+	testfile2 := testfile_path + "2"
+	f, err := os.Open(testfile2)
+	if err != nil {
+		log.Fatal("Couldn't open ", testfile2)
+	}
+	io.Copy(f, fb)
+	f.Seek(0, io.SeekStart)
+	data, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatal("Couldn't write ", testfile2)
+	}
+	if !bytes.Equal(data, testdata) {
+		log.Fatal("testfile != testfile2")
+	}
 
 }

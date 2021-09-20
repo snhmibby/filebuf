@@ -80,12 +80,21 @@ func (fb *FileBuffer) Seek(offset int64, whence int) (int64, error) {
 
 //io.Writer
 func (fb *FileBuffer) Write(p []byte) (int, error) {
-	if fb.offset > fb.Size() {
-		return 0, io.EOF
+	plen := int64(len(p))
+
+	if plen+fb.offset < fb.Size() {
+		fb.Remove(fb.offset, plen)
+	} else {
+		//at least partial write over EOF?
+		if fb.offset > fb.Size() {
+			return 0, fmt.Errorf("FileBuffer.Write: Attempt to write past EOF")
+		} else if fb.offset < fb.Size() {
+			fb.Remove(fb.offset, fb.Size()-fb.offset)
+		}
 	}
-	fb.Remove(fb.offset, int64(len(p)))
-	fb.InsertBytes(fb.offset, p)
-	return len(p), nil
+	err := fb.InsertBytes(fb.offset, p)
+	fb.offset += int64(len(p))
+	return len(p), err
 }
 
 //io.Reader
@@ -127,14 +136,17 @@ func (fb *FileBuffer) ReadBuf(offset int64, size int64) (*bytes.Buffer, error) {
 	return &buf, err
 }
 
-//Dump contents to stdout
-func (fb *FileBuffer) Dump() {
+//Dump contents to out
+func (fb *FileBuffer) Dump(out io.Writer) error {
 	for n := fb.root.first(); n != nil; n = n.next() {
 		b := make([]byte, n.data.Size())
 		n.data.ReadAt(b, 0)
-		fmt.Print(string(b))
+		n, err := out.Write(b)
+		if err != nil || n != len(b) {
+			return err
+		}
 	}
-	fmt.Println()
+	return nil
 }
 
 //Remove size bytes at offset
@@ -171,6 +183,7 @@ func (fb *FileBuffer) Paste(offset int64, paste *FileBuffer) {
 	fb.root.setRight(extra)
 }
 
+//Make the root node start exactly at offset (if possible)
 //0 <= offset <= fb.Size()
 func (fb *FileBuffer) find(offset int64) {
 	if offset < 0 {
@@ -300,7 +313,7 @@ func (buf *bufData) AppendByte(b byte) {
 }
 
 func (buf *bufData) AppendBytes(b []byte) {
-	buf.data = append(buf.data, b...)
+	buf.data = append(buf.data, b...) //XXX This might be slow?
 }
 
 func (buf *bufData) Split(offset int64) (data, data) {
@@ -362,7 +375,8 @@ func (f *fileData) ReadAt(p []byte, off int64) (int, error) {
 	if off > f.size {
 		return 0, io.EOF
 	} else if int64(len(p)) > f.size-off {
-		b = p[:f.size-off] // limit read buffer to this node' size
+		// limit read buffer to this node size
+		b = p[:f.size-off]
 	}
 	n, err := f.file.ReadAt(b, f.offset+off)
 	return n, err
