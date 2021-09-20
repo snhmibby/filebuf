@@ -7,14 +7,15 @@ package filebuf
    Cut, Copy and Paste operations thus only copy a tree, not an entire slice.
    Insert becomes (possibly) splitting a node and appending to a slice.
 
-   Saving to a file becomes a bit cumbersome to do efficiently and is not implemented.
+   Saving to a file becomes a bit cumbersome to do efficiently and is not implemented (yet).
    You can io.Copy the buffer to a temporary file and rename it to the original.
    This serializes the entire buffer and is not necessary and slow :((
 */
 
 /* TODO:
- * - maintain undo/redo queue
  * - smart writing back to original file (.Save()... operation)
+ * - maintain undo/redo queue
+ * - string/regex searching
  * - allow for combining nodes if possible
  *   having many small nodes eats memory and grows the tree so everyting bogs down.
  *   having bigger nodes make it a lot faster.
@@ -412,17 +413,15 @@ func newTree(d data) *tree {
 
 //Copy this tree
 func (t *tree) Copy() *tree {
-	n := *t
-	n.data = n.data.Copy()
-	if n.left != nil {
-		n.left = n.left.Copy()
-		n.left.parent = &n
+	if t == nil {
+		return nil
+	} else {
+		n := *t
+		n.data = n.data.Copy()
+		n.setLeft(n.left.Copy())
+		n.setRight(n.right.Copy())
+		return &n
 	}
-	if n.right != nil {
-		n.right = n.right.Copy()
-		n.right.parent = &n
-	}
-	return &n
 }
 
 /* The set{Left, Right, Parent} functions should be used,
