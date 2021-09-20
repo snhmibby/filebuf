@@ -358,8 +358,11 @@ func newFileData(fname string) (*fileData, error) {
 
 func (f *fileData) ReadAt(p []byte, off int64) (int, error) {
 	b := p
-	if int64(len(p)) > f.size {
-		b = p[:f.size]
+	//bounds checking
+	if off > f.size {
+		return 0, io.EOF
+	} else if int64(len(p)) > f.size-off {
+		b = p[:f.size-off] // limit read buffer to this node' size
 	}
 	n, err := f.file.ReadAt(b, f.offset+off)
 	return n, err
