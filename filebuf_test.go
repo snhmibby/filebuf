@@ -211,8 +211,9 @@ func TestPaste(t *testing.T) {
 func TestReadWriteSeek(t *testing.T) {
 	b := NewMemBuffer([]byte{})
 	createTestData(b)
-	buf := make([]byte, len(helloworld))
 	for i := 0; i < TESTDATA_REPEAT; i++ {
+		// use a new buffer each iteration for fun
+		buf := make([]byte, len(helloworld))
 		i_off := int64(i * len(testdata))
 		off, err := b.Seek(i_off, io.SeekStart)
 		if err != nil {
@@ -240,7 +241,13 @@ func TestReadWriteSeek(t *testing.T) {
 		t.Fatalf("TestReadWriteSeek: Wrong size @ end (%d, should be %d)", b.Size(), newsz)
 	}
 	b.Remove(0, newsz-int64(len(helloworld)))
-	if !compareBuf2Bytes(b, helloworld) {
-		t.Fatalf("TestReadWriteSeek: .Remove(..) failed")
+	n, _ := b.Seek(-int64(len(helloworld)), io.SeekEnd)
+	if n != 0 {
+		t.Fatalf("TestReadWriteSeek: unexpected size/seek : (%d/%d)", b.Size(), n)
+	}
+	buf := make([]byte, len(helloworld))
+	b.Read(buf)
+	if !bytes.Equal(buf, helloworld) {
+		t.Fatalf("TestReadWriteSeek: final Read(..) failed")
 	}
 }
