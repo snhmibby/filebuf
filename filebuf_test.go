@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const TESTDATA_REPEAT = 5000
+
 var helloworld = []byte("Hello World!\n")
 var testdata_line2 = []byte("this is some testdata.\n")
 var testdata = []byte(`Hello World!
@@ -15,7 +17,7 @@ this is the third line.
 `)
 
 //compare a filebuf to another file
-//XXX only use small files here
+//XXX this slurps entire file into a buffer; only use small files here
 func compareBuf2File(b *FileBuffer, f io.ReadSeeker) bool {
 	b.Seek(0, io.SeekStart)
 	b_text, err := io.ReadAll(b)
@@ -57,8 +59,6 @@ func shittyAppend2Buf(fb *FileBuffer, b []byte) error {
 	}
 	return nil
 }
-
-const TESTDATA_REPEAT = 5000
 
 //add a small bunch of data in a sort of randomized way to fb
 //the final buffer should hold testdata, repeated TESTDATA_REPEAT times
@@ -200,9 +200,10 @@ func TestPaste(t *testing.T) {
 	//write b2 to file, open b4 on file that b3 has written, compare them
 	b2file, _ := os.CreateTemp("", "TESTFILE")
 	defer os.Remove(b2file.Name())
+
 	b2.Dump(b2file)
-	b4, _ := NewFileBuffer(b2file.Name())
-	if !compareBuf2File(b4, b3file) {
+	b4, _ := NewFileBuffer(b3file.Name())
+	if !compareBuf2File(b4, b2file) {
 		t.Fatalf("TestPaste: newbuf(b2file) != b3file")
 	}
 }
