@@ -3,6 +3,7 @@ package filebuf
 /* TODO:
  * - these tests only test working basic functionality and don't try to trigger errors
  *   should be about half/half imo
+ * - make fair benchmarks against other rope implementations
  */
 
 import (
@@ -21,10 +22,12 @@ var testdata_line2 = []byte("this is some testdata.\n")
 var testdata = []byte(`Hello World!
 this is some testdata.
 this is the third line.
+Here comes a book:
+
 `)
 
 //compare a filebuf to another file
-//XXX this slurps entire file into a buffer; only use small files here
+//XXX this slurps entire file into a buffer; only use smallish files here
 func compareBuf2File(b *FileBuffer, f io.ReadSeeker) bool {
 	b.Seek(0, io.SeekStart)
 	b_text, err := io.ReadAll(b)
@@ -198,8 +201,8 @@ func TestPaste(t *testing.T) {
 	//write b3 to file, compare to b2
 	b3file, _ := os.CreateTemp("", "TESTFILE")
 	defer os.Remove(b3file.Name())
-
 	b3.Dump(b3file)
+
 	if !compareBuf2File(b2, b3file) {
 		t.Fatalf("TestPaste: b2 != b3file")
 	}
@@ -271,15 +274,6 @@ func randomCut(t *testing.T, b *FileBuffer) (int64, int64, *FileBuffer) {
 	if cut.Size() != size {
 		t.Fatalf("randomCut: cut is not the right size")
 	}
-	/* XXX TODO?
-	seekoff, err := b.Seek(0, io.SeekStart)
-	if err != nil {
-		t.Fatalf("randomCut: seek failed: %v", err)
-	}
-	if seekoff != offset {
-		t.Fatalf("randomCut: cut is not at right offset")
-	}
-	*/
 	return offset, size, cut
 }
 
@@ -320,6 +314,8 @@ func TestCutCopyPaste(t *testing.T) {
 		c1.Paste(o2, p2)
 		b.Paste(o1, p1)
 	}
+	btest.Stats("Normal testdata")
+	b.Stats("Chopped up testdata (lot of cuts & pastes)")
 
 	if !compareBuf2File(b, testfile) {
 		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")

@@ -13,6 +13,7 @@ package filebuf
 */
 
 /* TODO:
+ * - be consistent with panics or returning error
  * - smart writing back to original file (.Save()... operation)
  * - maintain undo/redo queue
  * - string/regex searching
@@ -187,7 +188,7 @@ func (fb *FileBuffer) Cut(offset int64, size int64) *FileBuffer {
 //Copy size bytes at offset
 func (fb *FileBuffer) Copy(offset int64, size int64) *FileBuffer {
 	if offset < 0 || offset > fb.Size() || fb.Size() < offset+size {
-		panic("FileBuffer.Copy(): offset > buffer.size")
+		panic("FileBuffer.Copy(): offset or size out of bounds")
 	}
 	tmpCut := fb.Cut(offset, size)
 	cpy := &FileBuffer{root: tmpCut.root.Copy()}
@@ -289,6 +290,18 @@ func (fb *FileBuffer) makeAppendable() {
 		fb.root = newnode
 
 	}
+}
+
+func (fb *FileBuffer) Stats(name string) {
+	var st Stats
+	fb.root.stats(&st, 0)
+	if fb.Size() != st.size {
+		panic("Stats: sizes don't match")
+	}
+	fmt.Printf("\n----- STATS FOR BUFFER %s\nsize = %d\n", name, st.size)
+	fmt.Printf("stats.numnodes=%d (file: %d, data: %d)\n", st.numnodes, st.filenodes, st.datanodes)
+	fmt.Printf("maxdist: %d (avg: %f)\n", st.maxdist, st.avgdist)
+	fmt.Printf("avgsize: %f (min: %d, max: %d)\n", st.avgsz, st.minsz, st.maxsz)
 }
 
 /***************************************************************************************
@@ -451,6 +464,44 @@ type tree struct {
 	size                int64 //left.size + data.size + right.size
 }
 
+type Stats struct {
+	size                           int64
+	numnodes, filenodes, datanodes int
+	maxdist                        int64   //max distance to root
+	avgdist                        float64 //avg distance to root
+	maxsz, minsz                   int64   //max/min nodesize
+	avgsz                          float64 //average nodesize
+}
+
+func updateAvg(avg float64, n int, val int64) float64 {
+	return (avg*float64(n) + float64(val)) / float64(n+1)
+}
+
+func (t *tree) stats(st *Stats, depth int64) {
+	if t != nil {
+		t.left.stats(st, depth+1)
+		t.right.stats(st, depth+1)
+		if t.data.Appendable() {
+			st.datanodes++
+		} else {
+			st.filenodes++
+		}
+		if depth > st.maxdist {
+			st.maxdist = depth
+		}
+		st.avgdist = updateAvg(st.avgdist, st.numnodes, depth)
+		st.avgsz = updateAvg(st.avgsz, st.numnodes, treesize(t))
+		tsz := t.data.Size()
+		st.size += tsz
+		if tsz > st.maxsz {
+			st.maxsz = tsz
+		}
+		if tsz < st.minsz {
+			st.minsz = tsz
+		}
+		st.numnodes++
+	}
+}
 func newTree(d data) *tree {
 	return &tree{data: d, size: d.Size()}
 }
@@ -583,7 +634,6 @@ func rotateLeft(x *tree) {
 		y.setParent(x.parent)
 	}
 	if x.parent == nil {
-		//?
 	} else if x == x.parent.left {
 		x.parent.setLeft(y)
 	} else {
