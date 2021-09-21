@@ -39,7 +39,7 @@ type FileBuffer struct {
 }
 
 //Use byte array b as source for a filebuffer
-func NewMemBuffer(b []byte) *FileBuffer {
+func NewMem(b []byte) *FileBuffer {
 	d := newBufData(b)
 	t := newTree(d)
 	return &FileBuffer{root: t}
@@ -48,7 +48,7 @@ func NewMemBuffer(b []byte) *FileBuffer {
 //Open file 'f' as source for a filebuffer
 //As long as you are using buffers predicated on 'f',
 //you probably shouldn't change the file on disk
-func NewFileBuffer(f string) (*FileBuffer, error) {
+func OpenFile(f string) (*FileBuffer, error) {
 	d, err := newFileData(f)
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func (fb *FileBuffer) Cut(offset int64, size int64) *FileBuffer {
 	}
 
 	if size == 0 {
-		return NewMemBuffer([]byte{})
+		return NewMem([]byte{})
 	}
 
 	fb.findBefore(offset)

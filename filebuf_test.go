@@ -95,12 +95,12 @@ func createTestData(fb *FileBuffer) {
 func TestNewFileBuf(t *testing.T) {
 	testfile, _ := os.CreateTemp("", "TESTFILE")
 	defer os.Remove(testfile.Name())
-	b, err := NewFileBuffer(testfile.Name())
+	b, err := OpenFile(testfile.Name())
 	if err != nil {
-		t.Fatalf("NewFileBuffer(%s): %v)", testfile.Name(), err)
+		t.Fatalf("OpenFile(%s): %v)", testfile.Name(), err)
 	}
 	if b == nil {
-		t.Fatalf(`NewFileBuffer(%s) buf is 'nil'`, testfile.Name())
+		t.Fatalf(`OpenFile(%s) buf is 'nil'`, testfile.Name())
 	}
 
 	shittyAppend2Buf(b, testdata)
@@ -129,8 +129,8 @@ func TestNewFileBuf(t *testing.T) {
 	}
 }
 
-func TestNewMemBuf(t *testing.T) {
-	b := NewMemBuffer([]byte{})
+func TestNewMem(t *testing.T) {
+	b := NewMem([]byte{})
 	createTestData(b)
 
 	testbuffer_size := int64(TESTDATA_REPEAT * len(testdata))
@@ -155,7 +155,7 @@ func TestNewMemBuf(t *testing.T) {
 }
 
 func TestCut(t *testing.T) {
-	b := NewMemBuffer([]byte{})
+	b := NewMem([]byte{})
 	createTestData(b)
 	for i := TESTDATA_REPEAT - 1; i >= 0; i-- {
 		cut := b.Cut(int64(i*len(testdata)), int64(len(helloworld)))
@@ -177,9 +177,9 @@ func TestCut(t *testing.T) {
 }
 
 func TestPaste(t *testing.T) {
-	b := NewMemBuffer(testdata)
-	b2 := NewMemBuffer([]byte{})
-	b3 := NewMemBuffer([]byte{})
+	b := NewMem(testdata)
+	b2 := NewMem([]byte{})
+	b3 := NewMem([]byte{})
 	createTestData(b3)
 
 	//createTestData by using Paste
@@ -212,14 +212,14 @@ func TestPaste(t *testing.T) {
 	defer os.Remove(b2file.Name())
 
 	b2.Dump(b2file)
-	b4, _ := NewFileBuffer(b3file.Name())
+	b4, _ := OpenFile(b3file.Name())
 	if !compareBuf2File(b4, b2file) {
 		t.Fatalf("TestPaste: newbuf(b2file) != b3file")
 	}
 }
 
 func TestReadWriteSeek(t *testing.T) {
-	b := NewMemBuffer([]byte{})
+	b := NewMem([]byte{})
 	createTestData(b)
 	for i := 0; i < TESTDATA_REPEAT; i++ {
 		// use a new buffer each iteration for fun
@@ -265,7 +265,7 @@ func TestReadWriteSeek(t *testing.T) {
 //return offset, size, cut
 func randomCut(t *testing.T, b *FileBuffer) (int64, int64, *FileBuffer) {
 	if b.Size() <= 0 {
-		return 0, 0, NewMemBuffer([]byte{})
+		return 0, 0, NewMem([]byte{})
 	}
 	offset := rand.Int63n(b.Size())
 	size := rand.Int63n(b.Size() - offset)
@@ -279,9 +279,9 @@ func randomCut(t *testing.T, b *FileBuffer) (int64, int64, *FileBuffer) {
 
 func TestCutCopyPaste(t *testing.T) {
 	rand.Seed(time.Hour.Milliseconds())
-	b := NewMemBuffer([]byte{})
+	b := NewMem([]byte{})
 	//don't touch btest to compare at the end
-	btest := NewMemBuffer([]byte{})
+	btest := NewMem([]byte{})
 	createTestData(btest)
 	createTestData(b)
 
@@ -321,3 +321,11 @@ func TestCutCopyPaste(t *testing.T) {
 		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")
 	}
 }
+
+/* BENCHMARKING functions */
+/* Test against other rope libraries e.g.
+ * - https://pkg.go.dev/github.com/vinzmay/go-rope#section-readme
+ * - https://github.com/chewxy/skiprope/blob/master/rope_test.go
+ * - https://pkg.go.dev/github.com/fvbommel/util/rope#Rope.Rebalance
+ */
+//XXX see: https://github.com/chewxy/skiprope/blob/master/rope_test.go
