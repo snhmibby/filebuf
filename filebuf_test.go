@@ -308,14 +308,17 @@ func TestCutCopyPaste(t *testing.T) {
 		t.Fatal("TestCutCopyPaste: before cutting n pasting: buffer != testfile")
 	}
 
-	for i := 0; i < TESTDATA_REPEAT/10; i++ {
+	for i := 0; i < TESTDATA_REPEAT/20; i++ {
 		o1, _, c1 := randomCut(t, b)
+		p1 := c1.Copy(0, c1.Size())
 		o2, _, c2 := randomCut(t, c1)
+		p2 := c2.Copy(0, c2.Size())
 		o3, _, c3 := randomCut(t, c2)
+		p3 := c3.Copy(0, c3.Size())
 
-		c2.Paste(o3, c3)
-		c1.Paste(o2, c2)
-		b.Paste(o1, c1)
+		c2.Paste(o3, p3)
+		c1.Paste(o2, p2)
+		b.Paste(o1, p1)
 	}
 
 	if !compareBuf2File(b, testfile) {

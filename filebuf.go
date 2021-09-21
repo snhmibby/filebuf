@@ -167,6 +167,14 @@ func (fb *FileBuffer) Remove(offset int64, size int64) {
 
 //Cut size bytes at offset
 func (fb *FileBuffer) Cut(offset int64, size int64) *FileBuffer {
+	if offset < 0 || offset > fb.Size() || fb.Size() < offset+size {
+		panic("FileBuffer.Cut: offsets OOB")
+	}
+
+	if size == 0 {
+		return NewMemBuffer([]byte{})
+	}
+
 	fb.findBefore(offset)
 	cut := &FileBuffer{root: fb.root.right}
 	cut.root.setParent(nil)
@@ -178,6 +186,9 @@ func (fb *FileBuffer) Cut(offset int64, size int64) *FileBuffer {
 
 //Copy size bytes at offset
 func (fb *FileBuffer) Copy(offset int64, size int64) *FileBuffer {
+	if offset < 0 || offset > fb.Size() || fb.Size() < offset+size {
+		panic("FileBuffer.Copy(): offset > buffer.size")
+	}
 	tmpCut := fb.Cut(offset, size)
 	cpy := &FileBuffer{root: tmpCut.root.Copy()}
 	fb.Paste(offset, tmpCut)
@@ -186,12 +197,14 @@ func (fb *FileBuffer) Copy(offset int64, size int64) *FileBuffer {
 
 //Paste buf at offset
 func (fb *FileBuffer) Paste(offset int64, paste *FileBuffer) {
-	fb.findBefore(offset)
-	extra := fb.root.right
-	newtree := paste.root.Copy()
-	fb.root.setRight(newtree)
-	fb.root = splay(fb.root.last())
-	fb.root.setRight(extra)
+	if paste != nil && paste.Size() > 0 {
+		fb.findBefore(offset)
+		extra := fb.root.right
+		newtree := paste.root.Copy()
+		fb.root.setRight(newtree)
+		fb.root = splay(fb.root.last())
+		fb.root.setRight(extra)
+	}
 }
 
 //Make the root node start exactly at offset (if possible)
