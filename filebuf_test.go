@@ -1,10 +1,17 @@
 package filebuf
 
+/* TODO:
+ * - these tests only test working basic functionality and don't try to trigger errors
+ *   should be about half/half imo
+ */
+
 import (
 	"bytes"
 	"io"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 )
 
 const TESTDATA_REPEAT = 5000
@@ -249,5 +256,69 @@ func TestReadWriteSeek(t *testing.T) {
 	b.Read(buf)
 	if !bytes.Equal(buf, helloworld) {
 		t.Fatalf("TestReadWriteSeek: final Read(..) failed")
+	}
+}
+
+//return offset, size, cut
+func randomCut(t *testing.T, b *FileBuffer) (int64, int64, *FileBuffer) {
+	if b.Size() <= 0 {
+		return 0, 0, NewMemBuffer([]byte{})
+	}
+	offset := rand.Int63n(b.Size())
+	size := rand.Int63n(b.Size() - offset)
+	//fmt.Println("Randomcut", offset, size)
+	cut := b.Cut(offset, size)
+	if cut.Size() != size {
+		t.Fatalf("randomCut: cut is not the right size")
+	}
+	/* XXX TODO?
+	seekoff, err := b.Seek(0, io.SeekStart)
+	if err != nil {
+		t.Fatalf("randomCut: seek failed: %v", err)
+	}
+	if seekoff != offset {
+		t.Fatalf("randomCut: cut is not at right offset")
+	}
+	*/
+	return offset, size, cut
+}
+
+func TestCutCopyPaste(t *testing.T) {
+	rand.Seed(time.Hour.Milliseconds())
+	b := NewMemBuffer([]byte{})
+	//don't touch btest to compare at the end
+	btest := NewMemBuffer([]byte{})
+	createTestData(btest)
+	createTestData(b)
+
+	testfile, err := os.CreateTemp("", "TESTFILE")
+	if err != nil {
+		t.Fatalf("Couldn't open %s: %v", testfile.Name(), err)
+	}
+	defer os.Remove(testfile.Name())
+	err = btest.Dump(testfile)
+	if err != nil {
+		t.Fatalf("Couldn't write %s: %v", testfile.Name(), err)
+	}
+
+	if b.Size() != btest.Size() {
+		t.Fatalf("TestCutCopyPaste: size didn't return to original size")
+	}
+	if !compareBuf2File(b, testfile) {
+		t.Fatal("TestCutCopyPaste: before cutting n pasting: buffer != testfile")
+	}
+
+	for i := 0; i < TESTDATA_REPEAT/10; i++ {
+		o1, _, c1 := randomCut(t, b)
+		o2, _, c2 := randomCut(t, c1)
+		o3, _, c3 := randomCut(t, c2)
+
+		c2.Paste(o3, c3)
+		c1.Paste(o2, c2)
+		b.Paste(o1, c1)
+	}
+
+	if !compareBuf2File(b, testfile) {
+		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")
 	}
 }

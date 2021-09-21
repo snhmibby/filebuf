@@ -97,6 +97,14 @@ func (fb *FileBuffer) Write(p []byte) (int, error) {
 	return len(p), err
 }
 
+func min(x, y int) int {
+	if x > y {
+		return y
+	} else {
+		return x
+	}
+}
+
 //io.Reader
 func (fb *FileBuffer) Read(p []byte) (int, error) {
 	//XXX might not be a bad idea to plug node-combining in here
@@ -110,10 +118,13 @@ func (fb *FileBuffer) Read(p []byte) (int, error) {
 	node := fb.root
 	for node != nil && toread > 0 {
 		var n int
-		n, err = node.data.ReadAt(p[read:], 0)
+		nodesize := int(node.data.Size())
+		canread := min(nodesize, toread)
+		b := p[read : read+canread]
+		n, err = node.data.ReadAt(b, 0)
 		read += n
 		toread -= n
-		if err != nil {
+		if n != canread || err != nil {
 			break
 		}
 		node = node.next()
@@ -293,6 +304,9 @@ func newBufData(b []byte) *bufData {
 
 func (buf *bufData) ReadAt(p []byte, off int64) (int, error) {
 	var bsize = len(buf.data)
+	if bsize == 0 {
+		return 0, nil
+	}
 	if int(off) >= bsize {
 		return 0, io.EOF
 	}
