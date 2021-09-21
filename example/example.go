@@ -11,7 +11,7 @@ import (
 
 const testfile_path = "TESTFILE"
 
-func emptyTestFile() *B.FileBuffer {
+func emptyTestFile() *B.Buffer {
 	os.Create(testfile_path)
 	b, err := B.NewFileBuffer(testfile_path)
 	if err != nil {
@@ -27,7 +27,7 @@ this is the third line.
 `)
 
 func main() {
-	var fb *B.FileBuffer
+	var fb *B.Buffer
 	/*
 		//grow a big file by repeated pasting
 		fb = B.NewMemBuffer([]byte("Hello World.\n"))
