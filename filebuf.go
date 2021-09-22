@@ -65,18 +65,20 @@ func (fb *Buffer) Size() int64 {
 
 //io.Seeker
 func (fb *Buffer) Seek(offset int64, whence int) (int64, error) {
+	var newoff int64
 	switch {
 	case whence == io.SeekStart:
-		fb.offset = offset
+		newoff = offset
 	case whence == io.SeekCurrent:
-		fb.offset += offset
+		newoff += offset
 	case whence == io.SeekEnd:
-		fb.offset = fb.Size() + offset
+		newoff = fb.Size() + offset
 	}
-	if fb.offset < 0 || fb.offset > fb.Size() {
+	if newoff < 0 || newoff > fb.Size() {
 		//actually fb.offset > fb.Size() should be legal, but meh
 		return fb.offset, fmt.Errorf("FileBuffer.Seek() bad offset")
 	}
+	fb.offset = newoff
 	return fb.offset, nil
 }
 
