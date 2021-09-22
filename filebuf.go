@@ -190,7 +190,7 @@ func (fb *Buffer) Copy(offset int64, size int64) *Buffer {
 	return cpy
 }
 
-//this destroys the paste buffer
+//"destructive join" paste buffer into fb
 func (fb *Buffer) paste(offset int64, paste *Buffer) {
 	fb.findBefore(offset)
 	extra := fb.root.right
@@ -199,7 +199,7 @@ func (fb *Buffer) paste(offset int64, paste *Buffer) {
 	fb.root.setRight(extra)
 }
 
-//Paste buf at offset
+//Paste buf at offset (copies the paste buffer)
 func (fb *Buffer) Paste(offset int64, paste *Buffer) {
 	if paste != nil && paste.Size() > 0 {
 		p := *paste
@@ -275,7 +275,7 @@ func (fb *Buffer) Insert1(offset int64, b byte) error {
 	return nil
 }
 
-//Make the root node appendable, insert a new []buffer node if necessary
+//Make the root node appendable, insert a new, appendable node if necessary
 func (fb *Buffer) makeAppendable() {
 	if !fb.root.data.Appendable() {
 		data := newBufData([]byte{})

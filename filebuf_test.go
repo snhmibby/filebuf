@@ -378,13 +378,13 @@ func BenchmarkCopyR0(b *testing.B) {
 	//create some data
 	for i := 0; i < 500; i++ {
 		off := benchInt64(buf.Size())
-		buf.Insert(off, benchWord())
+		buf.Insert(off, benchText)
 	}
 
 	startBench(b)
 	for i := 0; i < b.N; i++ {
 		off := benchInt64(buf.Size())
-		sz := benchInt64(buf.Size() - off)
+		sz := benchInt64((buf.Size() - off) / 40)
 		_ = buf.Copy(off, sz)
 	}
 }
@@ -422,7 +422,7 @@ func BenchmarkCopyR1(b *testing.B) {
 	//create some data
 	for i := 0; i < 500; i++ {
 		off := benchInt(buf.Len())
-		buf.Insert(off, string(benchWord()))
+		buf.Insert(off, string(benchText))
 	}
 
 	startBench(b)
@@ -488,7 +488,7 @@ func BenchmarkCopyR2(b *testing.B) {
 	//create some data
 	for i := 0; i < 500; i++ {
 		off := benchInt64(buf.Len())
-		buf = R2Insert(buf, off, string(benchWord()))
+		buf = R2Insert(buf, off, string(benchText))
 	}
 
 	startBench(b)
