@@ -70,13 +70,13 @@ func (fb *Buffer) Seek(offset int64, whence int) (int64, error) {
 	case whence == io.SeekStart:
 		newoff = offset
 	case whence == io.SeekCurrent:
-		newoff += offset
+		newoff = fb.offset + offset
 	case whence == io.SeekEnd:
 		newoff = fb.Size() + offset
 	}
 	if newoff < 0 || newoff > fb.Size() {
 		//actually fb.offset > fb.Size() should be legal, but meh
-		return fb.offset, fmt.Errorf("FileBuffer.Seek() bad offset")
+		return fb.offset, fmt.Errorf("FileBuffer.Seek() bad offset (%d)", newoff)
 	}
 	fb.offset = newoff
 	return fb.offset, nil
@@ -114,22 +114,25 @@ func (fb *Buffer) Read(p []byte) (int, error) {
 	if fb.offset >= fb.Size() {
 		return 0, io.EOF
 	}
-	fb.find(fb.offset)
+
+	//fb.find(fb.offset)
+	//don't use splay-ing operations
+	node, nodeoffset := fb.root.get(fb.offset)
 	toread := len(p)
 	read := 0
-	node := fb.root
 	for node != nil && toread > 0 {
 		var n int
-		nodesize := int(node.data.Size())
-		canread := min(nodesize, toread)
+		nodesize := node.data.Size()
+		canread := min(int(nodesize-nodeoffset), toread)
 		b := p[read : read+canread]
-		n, err = node.data.ReadAt(b, 0)
+		n, err = node.data.ReadAt(b, nodeoffset)
 		read += n
 		toread -= n
 		if n != canread || err != nil {
 			break
 		}
 		node = node.next()
+		nodeoffset = 0
 	}
 	if read == 0 && read < len(p) {
 		err = io.EOF

@@ -32,12 +32,20 @@ var testdata_line2 = []byte("this is some testdata.\n")
 var testdata = []byte(`Hello World!
 this is some testdata.
 this is the third line.
-Here comes a book:
 
+.
+
+
+
+...
+
+.
+
+.
 `)
 
 //compare a filebuf to another file
-//XXX this slurps entire file into a buffer; only use smallish files here
+//XXX this slurps entire file; only use smallish files here
 func compareBuf2File(b *Buffer, f io.ReadSeeker) bool {
 	b.Seek(0, io.SeekStart)
 	b_text, err := io.ReadAll(b)
@@ -334,7 +342,7 @@ func TestCutCopyPaste(t *testing.T) {
 func TestFileBufVsOtherImplementation(t *testing.T) {
 	b := NewEmpty()
 	b2 := R2.New("")
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		if b.Size() != b2.Len() {
 			t.Fatal("size doesn't match other implementation")
 		}
@@ -361,7 +369,7 @@ func TestFileBufVsOtherImplementation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't open %s!", tmpfileName)
 	}
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		if b.Size() != b2.Len() {
 			t.Fatal("size doesn't match other implementation")
 		}
@@ -375,7 +383,7 @@ func TestFileBufVsOtherImplementation(t *testing.T) {
 		t.Fatal("buffer contents doesn't match other implementation after inserts")
 	}
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		if b.Size() != b2.Len() {
 			t.Fatal("size doesn't match other implementation (deleting)")
 		}
@@ -395,7 +403,7 @@ func TestMemBufVsOtherImplementation(t *testing.T) {
 	//R2 seems solid
 	b := NewEmpty()
 	b2 := R2.New("")
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		if b.Size() != b2.Len() {
 			t.Fatal("size doesn't match other implementation")
 		}
@@ -409,7 +417,7 @@ func TestMemBufVsOtherImplementation(t *testing.T) {
 		t.Fatal("buffer contents doesn't match other implementation after inserts")
 	}
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		if b.Size() != b2.Len() {
 			t.Fatal("size doesn't match other implementation (deleting)")
 		}

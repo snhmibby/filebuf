@@ -85,10 +85,10 @@ func (buf *bufData) Split(offset int64) (data, data) {
 	if offset == buf.Size() {
 		panic("bufData.Split(): offset = len(buf)")
 	}
-	/*
-		newslice := make([]byte, len(buf.data)-int(offset))
-		copy(newslice, buf.data[offset:])
-		return NewMem(buf.data[:offset]), NewMem(newslice)
+	/* setting buffers as 'static' after splitting them saves a copy
+	newslice := make([]byte, len(buf.data)-int(offset))
+	copy(newslice, buf.data[offset:])
+	return NewMem(buf.data[:offset]), NewMem(newslice)
 	*/
 	return newStaticBuf(buf.data[:offset]), newStaticBuf(buf.data[offset:])
 }

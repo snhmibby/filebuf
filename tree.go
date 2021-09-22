@@ -1,6 +1,6 @@
 package filebuf
 
-/* A splay tree that holds Data */
+/* A binary tree that holds Data */
 type tree struct {
 	left, right, parent *tree
 	data                data
