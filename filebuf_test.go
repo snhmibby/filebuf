@@ -331,6 +331,41 @@ func TestCutCopyPaste(t *testing.T) {
 	}
 }
 
+func TestVsOtherImplementation(t *testing.T) {
+	//R2 seems solid
+	b := NewEmpty()
+	b2 := R2.New("")
+	for i := 0; i < 3000; i++ {
+		if b.Size() != b2.Len() {
+			t.Fatal("size doesn't match other implementation")
+		}
+		w := benchWord()
+		off := benchInt64(b.Size())
+		b.Insert(off, w)
+		b2 = R2Insert(b2, off, string(w))
+	}
+	b2Bytes := []byte(b2.String())
+	if !compareBuf2Bytes(b, b2Bytes) {
+		t.Fatal("buffer contents doesn't match other implementation after inserts")
+	}
+
+	for i := 0; i < 1000; i++ {
+		if b.Size() != b2.Len() {
+			t.Fatal("size doesn't match other implementation (deleting)")
+		}
+		off := benchInt64(b.Size())
+		size := benchInt64(b.Size() - off)
+
+		b.Remove(off, size)
+		b2 = b2.Slice(0, off).Append(b2.Slice(off+size, b2.Len()))
+	}
+	b2Bytes = []byte(b2.String())
+	if !compareBuf2Bytes(b, b2Bytes) {
+		t.Fatal("buffer contents doesn't match other implementation after deletions")
+	}
+
+}
+
 /* BENCHMARKING functions */
 
 //testing variables
@@ -340,8 +375,8 @@ var benchWords = bytes.Fields(benchText)
 
 //call this at the start of each benchmark function
 func startBench(b *testing.B) {
-	b.ResetTimer()
 	bench_rnd = rand.New(benchmark_random_seed)
+	b.ResetTimer()
 }
 
 func benchWord() []byte {
