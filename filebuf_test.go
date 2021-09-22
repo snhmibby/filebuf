@@ -3,7 +3,7 @@ package filebuf
 /* TODO:
  * - these tests only test working basic functionality and don't try to trigger errors
  *   should be about half/half imo
- * - make fair benchmarks against other rope implementations
+ * - more tests with file-backed filebuf's
  */
 
 import (
@@ -331,7 +331,67 @@ func TestCutCopyPaste(t *testing.T) {
 	}
 }
 
-func TestVsOtherImplementation(t *testing.T) {
+func TestFileBufVsOtherImplementation(t *testing.T) {
+	b := NewEmpty()
+	b2 := R2.New("")
+	for i := 0; i < 3000; i++ {
+		if b.Size() != b2.Len() {
+			t.Fatal("size doesn't match other implementation")
+		}
+		w := benchWord()
+		off := benchInt64(b.Size())
+		b.Insert(off, w)
+		b2 = R2Insert(b2, off, string(w))
+	}
+	b2Bytes := []byte(b2.String())
+	if !compareBuf2Bytes(b, b2Bytes) {
+		t.Fatal("buffer contents doesn't match other implementation after inserts")
+	}
+
+	//now write our memory buffer to a file, open that and test some more
+	f, err := os.CreateTemp("", "")
+	defer os.Remove(f.Name())
+	if err != nil {
+		t.Fatal("Couldn't create tempfile")
+	}
+	b.Dump(f)
+	tmpfileName := f.Name()
+	f.Close()
+	b, err = OpenFile(tmpfileName)
+	if err != nil {
+		t.Fatalf("Couldn't open %s!", tmpfileName)
+	}
+	for i := 0; i < 3000; i++ {
+		if b.Size() != b2.Len() {
+			t.Fatal("size doesn't match other implementation")
+		}
+		w := benchWord()
+		off := benchInt64(b.Size())
+		b.Insert(off, w)
+		b2 = R2Insert(b2, off, string(w))
+	}
+	b2Bytes = []byte(b2.String())
+	if !compareBuf2Bytes(b, b2Bytes) {
+		t.Fatal("buffer contents doesn't match other implementation after inserts")
+	}
+
+	for i := 0; i < 1000; i++ {
+		if b.Size() != b2.Len() {
+			t.Fatal("size doesn't match other implementation (deleting)")
+		}
+		off := benchInt64(b.Size())
+		size := benchInt64(b.Size() - off)
+
+		b.Remove(off, size)
+		b2 = b2.Slice(0, off).Append(b2.Slice(off+size, b2.Len()))
+	}
+	b2Bytes = []byte(b2.String())
+	if !compareBuf2Bytes(b, b2Bytes) {
+		t.Fatal("buffer contents doesn't match other implementation after deletions")
+	}
+
+}
+func TestMemBufVsOtherImplementation(t *testing.T) {
 	//R2 seems solid
 	b := NewEmpty()
 	b2 := R2.New("")

@@ -7,47 +7,6 @@ type tree struct {
 	size                int64 //left.size + data.size + right.size
 }
 
-type Stats struct {
-	size                           int64
-	numnodes, filenodes, datanodes int64
-	maxdist                        int64   //max distance to root
-	avgdist                        float64 //avg distance to root
-	maxsz, minsz                   int64   //max/min nodesize
-	avgsz                          float64 //average nodesize
-}
-
-func updateAvg(avg float64, n_, val_ int64) float64 {
-	n := float64(n_)
-	val := float64(val_)
-	oldsum := avg * n
-	return (oldsum + val) / (n + 1)
-}
-
-func (t *tree) stats(st *Stats, depth int64) {
-	if t != nil {
-		t.left.stats(st, depth+1)
-		t.right.stats(st, depth+1)
-		if t.data.Appendable() {
-			st.datanodes++
-		} else {
-			st.filenodes++
-		}
-		if depth > st.maxdist {
-			st.maxdist = depth
-		}
-		st.avgdist = updateAvg(st.avgdist, st.numnodes, depth)
-		st.avgsz = updateAvg(st.avgsz, st.numnodes, treesize(t))
-		tsz := t.data.Size()
-		st.size += tsz
-		if tsz > st.maxsz {
-			st.maxsz = tsz
-		}
-		if tsz < st.minsz {
-			st.minsz = tsz
-		}
-		st.numnodes++
-	}
-}
 func newTree(d data) *tree {
 	return &tree{data: d, size: d.Size()}
 }
@@ -159,6 +118,48 @@ func (node *tree) get(offset int64) (*tree, int64) {
 		return node, offsetInNode
 	default:
 		return node.right.get(offsetInNode - nodeSize)
+	}
+}
+
+type Stats struct {
+	size                           int64
+	numnodes, filenodes, datanodes int64
+	maxdist                        int64   //max distance to root
+	avgdist                        float64 //avg distance to root
+	maxsz, minsz                   int64   //max/min nodesize
+	avgsz                          float64 //average nodesize
+}
+
+func updateAvg(avg float64, n_, val_ int64) float64 {
+	n := float64(n_)
+	val := float64(val_)
+	oldsum := avg * n
+	return (oldsum + val) / (n + 1)
+}
+
+func (t *tree) stats(st *Stats, depth int64) {
+	if t != nil {
+		t.left.stats(st, depth+1)
+		t.right.stats(st, depth+1)
+		if t.data.Appendable() {
+			st.datanodes++
+		} else {
+			st.filenodes++
+		}
+		if depth > st.maxdist {
+			st.maxdist = depth
+		}
+		st.avgdist = updateAvg(st.avgdist, st.numnodes, depth)
+		st.avgsz = updateAvg(st.avgsz, st.numnodes, treesize(t))
+		tsz := t.data.Size()
+		st.size += tsz
+		if tsz > st.maxsz {
+			st.maxsz = tsz
+		}
+		if tsz < st.minsz {
+			st.minsz = tsz
+		}
+		st.numnodes++
 	}
 }
 

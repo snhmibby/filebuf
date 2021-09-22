@@ -24,17 +24,21 @@ type data interface {
 
 //[]Byte buffered data
 type bufData struct {
-	data       []byte
-	appendable bool //freeze on splitting and after 1kb of data
+	data   []byte
+	frozen bool //freeze on splitting or after 1kb of data
 }
 
-func newBufData(b []byte) *bufData {
-	return &bufData{data: b, appendable: true}
+const maxBufLen = 1024
+
+func newBufData(b_ []byte) *bufData {
+	b := make([]byte, len(b_))
+	copy(b, b_)
+	return &bufData{data: b, frozen: false}
 }
 
 func newStaticBuf(b []byte) *bufData {
 	n := newBufData(b)
-	n.appendable = false
+	n.frozen = true
 	return n
 }
 
@@ -55,23 +59,23 @@ func (buf *bufData) Size() int64 {
 }
 
 func (buf *bufData) Appendable() bool {
-	return buf.appendable
+	return !buf.frozen
 }
 
 func (buf *bufData) AppendByte(b byte) {
-	if !buf.appendable {
+	if buf.frozen {
 		panic("buffer is not appendable")
 	}
 	buf.data = append(buf.data, b)
-	buf.appendable = buf.appendable && len(buf.data) < 1024
+	buf.frozen = buf.frozen || len(buf.data) > maxBufLen
 }
 
 func (buf *bufData) AppendBytes(b []byte) {
-	if !buf.appendable {
+	if buf.frozen {
 		panic("buffer is not appendable")
 	}
-	buf.data = append(buf.data, b...) //XXX This might be slow?
-	buf.appendable = buf.appendable && len(buf.data) < 1024
+	buf.data = append(buf.data, b...)
+	buf.frozen = buf.frozen || len(buf.data) > maxBufLen
 }
 
 func (buf *bufData) Split(offset int64) (data, data) {
@@ -84,14 +88,19 @@ func (buf *bufData) Split(offset int64) (data, data) {
 	/*
 		newslice := make([]byte, len(buf.data)-int(offset))
 		copy(newslice, buf.data[offset:])
+		return NewMem(buf.data[:offset]), NewMem(newslice)
 	*/
 	return newStaticBuf(buf.data[:offset]), newStaticBuf(buf.data[offset:])
 }
 
 func (buf *bufData) Copy() data {
-	b := make([]byte, len(buf.data))
-	copy(b, buf.data)
-	return newBufData(b)
+	if buf.frozen {
+		return buf
+	} else {
+		b := make([]byte, len(buf.data))
+		copy(b, buf.data)
+		return newBufData(b)
+	}
 }
 
 //File buffered data

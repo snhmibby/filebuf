@@ -87,7 +87,6 @@ func (fb *Buffer) Write(p []byte) (int, error) {
 	if plen+fb.offset < fb.Size() {
 		fb.Remove(fb.offset, plen)
 	} else {
-		//at least partial write over EOF?
 		if fb.offset > fb.Size() {
 			return 0, fmt.Errorf("FileBuffer.Write: Attempt to write past EOF")
 		} else if fb.offset < fb.Size() {
@@ -109,7 +108,6 @@ func min(x, y int) int {
 
 //io.Reader
 func (fb *Buffer) Read(p []byte) (int, error) {
-	//XXX this is messy
 	var err error
 	if fb.offset >= fb.Size() {
 		return 0, io.EOF
@@ -160,11 +158,11 @@ func (fb *Buffer) Remove(offset int64, size int64) {
 //Cut size bytes at offset
 func (fb *Buffer) Cut(offset int64, size int64) *Buffer {
 	if offset < 0 || offset > fb.Size() || fb.Size() < offset+size {
-		panic("FileBuffer.Cut: offsets OOB")
+		panic("FileBuffer.Cut: bad offset")
 	}
 
 	if size == 0 {
-		return NewMem([]byte{})
+		return NewEmpty()
 	}
 
 	fb.findBefore(offset)
@@ -227,7 +225,7 @@ func (fb *Buffer) find(offset int64) {
 	}
 }
 
-//Set the root node to one that ends at offset
+//Set the root node to one that ends at offset-1
 //i.e. appending to the root node would insert at offset
 func (fb *Buffer) findBefore(offset int64) {
 	var before *tree
@@ -292,11 +290,8 @@ func (fb *Buffer) makeAppendable() {
 func (fb *Buffer) Stats(name string) {
 	var st Stats
 	fb.root.stats(&st, 0)
-	if fb.Size() != st.size {
-		panic("Stats: sizes don't match")
-	}
 	fmt.Printf("\n----- STATS FOR BUFFER %s\nsize = %d\n", name, st.size)
 	fmt.Printf("stats.numnodes=%d (file: %d, data: %d)\n", st.numnodes, st.filenodes, st.datanodes)
-	fmt.Printf("maxdist: %d (avg: %f)\n", st.maxdist, st.avgdist)
-	fmt.Printf("avgsize: %f (min: %d, max: %d)\n", st.avgsz, st.minsz, st.maxsz)
+	fmt.Printf("avg node size: %f (min: %d, max: %d)\n", st.avgsz, st.minsz, st.maxsz)
+	fmt.Printf("maxdepth: %d (avg: %f)\n", st.maxdist, st.avgdist)
 }
