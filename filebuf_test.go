@@ -108,6 +108,11 @@ func createTestData(fb *Buffer) {
 		}
 	}
 }
+func createTestData_(fb *Buffer) {
+	for n := 0; n < TESTDATA_REPEAT; n++ {
+		fb.Insert(0, benchText)
+	}
+}
 
 func TestNewFileBuf(t *testing.T) {
 	testfile, _ := os.CreateTemp("", "TESTFILE")
@@ -299,8 +304,8 @@ func TestCutCopyPaste(t *testing.T) {
 	b := NewEmpty()
 	//don't touch btest to compare at the end
 	btest := NewEmpty()
-	createTestData(btest)
-	createTestData(b)
+	createTestData_(btest)
+	createTestData_(b)
 
 	testfile, err := os.CreateTemp("", "TESTFILE")
 	if err != nil {
@@ -319,7 +324,7 @@ func TestCutCopyPaste(t *testing.T) {
 		t.Fatal("TestCutCopyPaste: before cutting n pasting: buffer != testfile")
 	}
 
-	for i := 0; i < TESTDATA_REPEAT/20; i++ {
+	for i := 0; i < TESTDATA_REPEAT/10; i++ {
 		o1, _, c1 := randomCut(t, b)
 		p1 := c1.Copy(0, c1.Size())
 		o2, _, c2 := randomCut(t, c1)
@@ -331,8 +336,8 @@ func TestCutCopyPaste(t *testing.T) {
 		c1.Paste(o2, p2)
 		b.Paste(o1, p1)
 	}
-	//btest.Stats("Normal testdata")
-	//b.Stats("Chopped up testdata (lot of cuts & pastes)")
+	btest.Stats("Normal testdata")
+	b.Stats("Chopped up testdata (lot of cuts & pastes)")
 
 	if !compareBuf2File(b, testfile) {
 		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")

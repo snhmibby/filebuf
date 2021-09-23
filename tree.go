@@ -122,12 +122,12 @@ func (node *tree) get(offset int64) (*tree, int64) {
 }
 
 type Stats struct {
-	size                           int64
-	numnodes, filenodes, datanodes int64
-	maxdist                        int64   //max distance to root
-	avgdist                        float64 //avg distance to root
-	maxsz, minsz                   int64   //max/min nodesize
-	avgsz                          float64 //average nodesize
+	size                                      int64
+	numnodes, filenodes, datanodes, fixeddata int64
+	maxdist                                   int64   //max distance to root
+	avgdist                                   float64 //avg distance to root
+	maxsz, minsz                              int64   //max/min nodesize
+	avgsz                                     float64 //average nodesize
 }
 
 func updateAvg(avg float64, n_, val_ int64) float64 {
@@ -141,17 +141,21 @@ func (t *tree) stats(st *Stats, depth int64) {
 	if t != nil {
 		t.left.stats(st, depth+1)
 		t.right.stats(st, depth+1)
-		if t.data.Appendable() {
-			st.datanodes++
-		} else {
+		switch t.data.(type) {
+		case *fileData:
 			st.filenodes++
+		case *bufData:
+			st.datanodes++
+			if t.data.(*bufData).frozen {
+				st.fixeddata++
+			}
 		}
 		if depth > st.maxdist {
 			st.maxdist = depth
 		}
 		st.avgdist = updateAvg(st.avgdist, st.numnodes, depth)
-		st.avgsz = updateAvg(st.avgsz, st.numnodes, treesize(t))
 		tsz := t.data.Size()
+		st.avgsz = updateAvg(st.avgsz, st.numnodes, tsz)
 		st.size += tsz
 		if tsz > st.maxsz {
 			st.maxsz = tsz

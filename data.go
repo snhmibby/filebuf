@@ -20,6 +20,7 @@ type data interface {
 	AppendBytes(b []byte)
 	Split(offset int64) (data, data)
 	Copy() data
+	Combine(d data) data //combine this node and d, if possible (nil if not)
 }
 
 //[]Byte buffered data
@@ -103,6 +104,16 @@ func (buf *bufData) Copy() data {
 	}
 }
 
+func (buf *bufData) Combine(d data) data {
+	if d.Size() < maxBufLen && buf.Size() < maxBufLen {
+		newbuf := make([]byte, d.Size()+buf.Size())
+		copy(newbuf, buf.data)
+		d.ReadAt(newbuf[buf.Size():], 0)
+		return &bufData{newbuf, false}
+	}
+	return nil
+}
+
 //File buffered data
 type fileData struct {
 	file   io.ReaderAt
@@ -184,4 +195,15 @@ func (f *fileData) Split(offset int64) (data, data) {
 
 func (f *fileData) Copy() data {
 	return f
+}
+
+func (f *fileData) Combine(d data) data {
+	f2, ok := d.(*fileData)
+	if !ok {
+		return nil
+	}
+	if f.file == f2.file && f.offset+f.size == f2.offset {
+		return &fileData{file: f.file, offset: f.offset, size: f.size + f2.size}
+	}
+	return nil
 }

@@ -294,9 +294,10 @@ func (fb *Buffer) makeAppendable() {
 
 func (fb *Buffer) Stats(name string) {
 	var st Stats
+	st.minsz = fb.Size() + 1
 	fb.root.stats(&st, 0)
 	fmt.Printf("\n----- STATS FOR BUFFER %s\nsize = %d\n", name, st.size)
-	fmt.Printf("stats.numnodes=%d (file: %d, data: %d)\n", st.numnodes, st.filenodes, st.datanodes)
+	fmt.Printf("stats.numnodes=%d (file: %d, data: %d (fixed: %d))\n", st.numnodes, st.filenodes, st.datanodes, st.fixeddata)
 	fmt.Printf("avg node size: %f (min: %d, max: %d)\n", st.avgsz, st.minsz, st.maxsz)
 	fmt.Printf("maxdepth: %d (avg: %f)\n", st.maxdist, st.avgdist)
 }
