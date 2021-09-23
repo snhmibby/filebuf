@@ -31,13 +31,13 @@ type bufData struct {
 
 const maxBufLen = 4096
 
-func BufData(b_ []byte) *bufData {
+func mkBuf(b_ []byte) *bufData {
 	b := make([]byte, len(b_))
 	copy(b, b_)
 	return &bufData{data: b, frozen: false}
 }
 
-func StaticData(b []byte) *bufData {
+func mkStatic(b []byte) *bufData {
 	return &bufData{data: b, frozen: true}
 }
 
@@ -89,14 +89,14 @@ func (buf *bufData) Split(offset int64) (data, data) {
 	copy(newslice, buf.data[offset:])
 	return NewMem(buf.data[:offset]), NewMem(newslice)
 	*/
-	return StaticData(buf.data[:offset]), StaticData(buf.data[offset:])
+	return mkStatic(buf.data[:offset]), mkStatic(buf.data[offset:])
 }
 
 func (buf *bufData) Copy() data {
 	if buf.frozen {
 		return buf
 	} else {
-		return BufData(buf.data)
+		return mkBuf(buf.data)
 	}
 }
 
@@ -119,7 +119,7 @@ type fileData struct {
 
 //it might not be a bad idea to mmap HUGE files on 64bit systems?
 //i mean it is 2021, right?
-func FileData(fname string) (*fileData, error) {
+func mkFileBuf(fname string) (*fileData, error) {
 	var f fileData
 	var use_mmap = true
 	if use_mmap {

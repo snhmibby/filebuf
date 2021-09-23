@@ -35,14 +35,14 @@ type Buffer struct {
 }
 
 func NewEmpty() *Buffer {
-	t := Node(BufData([]byte{}))
+	t := mkNode(mkBuf([]byte{}))
 	return &Buffer{root: t}
 }
 
 //Use byte array b as source for a filebuffer
 func NewMem(b []byte) *Buffer {
-	d := BufData(b)
-	t := Node(d)
+	d := mkBuf(b)
+	t := mkNode(d)
 	return &Buffer{root: t}
 }
 
@@ -50,11 +50,11 @@ func NewMem(b []byte) *Buffer {
 //As long as you are using buffers predicated on 'f',
 //you probably shouldn't change the file on disk
 func OpenFile(f string) (*Buffer, error) {
-	d, err := FileData(f)
+	d, err := mkFileBuf(f)
 	if err != nil {
 		return nil, err
 	}
-	r := Node(d)
+	r := mkNode(d)
 	return &Buffer{root: r}, nil
 }
 
@@ -221,8 +221,8 @@ func (fb *Buffer) find(offset int64) {
 	if nodeOffset != 0 {
 		//Need to split this node
 		ldata, rdata := fb.root.data.Split(nodeOffset)
-		l := Node(ldata)
-		r := Node(rdata)
+		l := mkNode(ldata)
+		r := mkNode(rdata)
 		l.setLeft(fb.root.left)
 		r.setRight(fb.root.right)
 		r.setLeft(l)
@@ -241,7 +241,7 @@ func (fb *Buffer) findBefore(offset int64) {
 		before = fb.root.prev()
 	}
 	if before == nil {
-		before = Node(BufData([]byte{}))
+		before = mkNode(mkBuf([]byte{}))
 		fb.root.setLeft(before)
 	}
 	fb.root = splay(before)
@@ -278,8 +278,8 @@ func (fb *Buffer) Insert1(offset int64, b byte) error {
 //Make the root node appendable, insert a new, appendable node if necessary
 func (fb *Buffer) makeAppendable() {
 	if !fb.root.data.Appendable() {
-		data := BufData([]byte{})
-		newnode := Node(data)
+		data := mkBuf([]byte{})
+		newnode := mkNode(data)
 		newnode.setRight(fb.root.right)
 
 		//this order is important because .set* functions do size updates

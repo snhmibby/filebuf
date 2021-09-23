@@ -7,7 +7,7 @@ type node struct {
 	size                int64 //left.size + data.size + right.size
 }
 
-func Node(d data) *node {
+func mkNode(d data) *node {
 	return &node{data: d, size: d.Size()}
 }
 
