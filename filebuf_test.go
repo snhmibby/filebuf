@@ -482,14 +482,14 @@ func BenchmarkInsertR0(b *testing.B) {
 }
 
 func BenchmarkCopyR0(b *testing.B) {
+	startBench(b)
 	buf := NewEmpty()
-	//create some data
-	for i := 0; i < TESTDATA_REPEAT; i++ {
+	//create some data & copy something out of it
+	for i := 0; i < b.N; i++ {
 		off := benchInt64(buf.Size())
-		buf.Insert(off, benchWord())
+		buf.Insert(off, benchText)
 	}
 
-	startBench(b)
 	for i := 0; i < b.N; i++ {
 		off := benchInt64(buf.Size())
 		sz := benchInt64((buf.Size() - off) / 40)
@@ -526,14 +526,14 @@ func BenchmarkInsertR1(b *testing.B) {
 }
 
 func BenchmarkCopyR1(b *testing.B) {
+	text := string(benchText)
+	startBench(b)
 	buf := R1.New("")
-	//create some data
-	for i := 0; i < TESTDATA_REPEAT; i++ {
+	for i := 0; i < b.N; i++ {
 		off := benchInt(buf.Len())
-		buf.Insert(off, string(benchWord()))
+		buf.Insert(off, text)
 	}
 
-	startBench(b)
 	for i := 0; i < b.N; i++ {
 		off := benchInt(buf.Len())
 		//same bug as below
@@ -592,14 +592,14 @@ func BenchmarkInsertR2(b *testing.B) {
 }
 
 func BenchmarkCopyR2(b *testing.B) {
+	text := string(benchText)
+	startBench(b)
 	buf := R2.New("")
-	//create some data
-	for i := 0; i < TESTDATA_REPEAT; i++ {
+	for i := 0; i < b.N; i++ {
 		off := benchInt64(buf.Len())
-		buf = R2Insert(buf, off, string(benchWord()))
+		buf = R2Insert(buf, off, text)
 	}
 
-	startBench(b)
 	for i := 0; i < b.N; i++ {
 		off := benchInt64(buf.Len())
 		sz := benchInt64(buf.Len() - off)
