@@ -336,8 +336,8 @@ func TestCutCopyPaste(t *testing.T) {
 		c1.Paste(o2, p2)
 		b.Paste(o1, p1)
 	}
-	btest.Stats("Normal testdata")
-	b.Stats("Chopped up testdata (lot of cuts & pastes)")
+	//btest.Stats("Normal testdata")
+	//b.Stats("Chopped up testdata (lot of cuts & pastes)")
 
 	if !compareBuf2File(b, testfile) {
 		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")
@@ -484,9 +484,9 @@ func BenchmarkInsertR0(b *testing.B) {
 func BenchmarkCopyR0(b *testing.B) {
 	buf := NewEmpty()
 	//create some data
-	for i := 0; i < 500; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		off := benchInt64(buf.Size())
-		buf.Insert(off, benchText)
+		buf.Insert(off, benchWord())
 	}
 
 	startBench(b)
@@ -528,9 +528,9 @@ func BenchmarkInsertR1(b *testing.B) {
 func BenchmarkCopyR1(b *testing.B) {
 	buf := R1.New("")
 	//create some data
-	for i := 0; i < 500; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		off := benchInt(buf.Len())
-		buf.Insert(off, string(benchText))
+		buf.Insert(off, string(benchWord()))
 	}
 
 	startBench(b)
@@ -594,9 +594,9 @@ func BenchmarkInsertR2(b *testing.B) {
 func BenchmarkCopyR2(b *testing.B) {
 	buf := R2.New("")
 	//create some data
-	for i := 0; i < 500; i++ {
+	for i := 0; i < TESTDATA_REPEAT; i++ {
 		off := benchInt64(buf.Len())
-		buf = R2Insert(buf, off, string(benchText))
+		buf = R2Insert(buf, off, string(benchWord()))
 	}
 
 	startBench(b)

@@ -30,19 +30,19 @@ import (
 
 //implements io.ReadWriteSeeker
 type Buffer struct {
-	root   *tree
+	root   *node
 	offset int64 //to implement io.ReaderSeeker
 }
 
 func NewEmpty() *Buffer {
-	t := newTree(newBufData([]byte{}))
+	t := Node(BufData([]byte{}))
 	return &Buffer{root: t}
 }
 
 //Use byte array b as source for a filebuffer
 func NewMem(b []byte) *Buffer {
-	d := newBufData(b)
-	t := newTree(d)
+	d := BufData(b)
+	t := Node(d)
 	return &Buffer{root: t}
 }
 
@@ -50,11 +50,11 @@ func NewMem(b []byte) *Buffer {
 //As long as you are using buffers predicated on 'f',
 //you probably shouldn't change the file on disk
 func OpenFile(f string) (*Buffer, error) {
-	d, err := newFileData(f)
+	d, err := FileData(f)
 	if err != nil {
 		return nil, err
 	}
-	r := newTree(d)
+	r := Node(d)
 	return &Buffer{root: r}, nil
 }
 
@@ -221,8 +221,8 @@ func (fb *Buffer) find(offset int64) {
 	if nodeOffset != 0 {
 		//Need to split this node
 		ldata, rdata := fb.root.data.Split(nodeOffset)
-		l := newTree(ldata)
-		r := newTree(rdata)
+		l := Node(ldata)
+		r := Node(rdata)
 		l.setLeft(fb.root.left)
 		r.setRight(fb.root.right)
 		r.setLeft(l)
@@ -233,7 +233,7 @@ func (fb *Buffer) find(offset int64) {
 //Set the root node to one that ends at offset-1
 //i.e. appending to the root node would insert at offset
 func (fb *Buffer) findBefore(offset int64) {
-	var before *tree
+	var before *node
 	if offset >= fb.Size() {
 		before = fb.root.last()
 	} else {
@@ -241,7 +241,7 @@ func (fb *Buffer) findBefore(offset int64) {
 		before = fb.root.prev()
 	}
 	if before == nil {
-		before = newTree(newBufData([]byte{}))
+		before = Node(BufData([]byte{}))
 		fb.root.setLeft(before)
 	}
 	fb.root = splay(before)
@@ -278,8 +278,8 @@ func (fb *Buffer) Insert1(offset int64, b byte) error {
 //Make the root node appendable, insert a new, appendable node if necessary
 func (fb *Buffer) makeAppendable() {
 	if !fb.root.data.Appendable() {
-		data := newBufData([]byte{})
-		newnode := newTree(data)
+		data := BufData([]byte{})
+		newnode := Node(data)
 		newnode.setRight(fb.root.right)
 
 		//this order is important because .set* functions do size updates

@@ -29,18 +29,16 @@ type bufData struct {
 	frozen bool //freeze on splitting or after 1kb of data
 }
 
-const maxBufLen = 1024
+const maxBufLen = 4096
 
-func newBufData(b_ []byte) *bufData {
+func BufData(b_ []byte) *bufData {
 	b := make([]byte, len(b_))
 	copy(b, b_)
 	return &bufData{data: b, frozen: false}
 }
 
-func newStaticBuf(b []byte) *bufData {
-	n := newBufData(b)
-	n.frozen = true
-	return n
+func StaticData(b []byte) *bufData {
+	return &bufData{data: b, frozen: true}
 }
 
 func (buf *bufData) ReadAt(p []byte, off int64) (int, error) {
@@ -91,16 +89,14 @@ func (buf *bufData) Split(offset int64) (data, data) {
 	copy(newslice, buf.data[offset:])
 	return NewMem(buf.data[:offset]), NewMem(newslice)
 	*/
-	return newStaticBuf(buf.data[:offset]), newStaticBuf(buf.data[offset:])
+	return StaticData(buf.data[:offset]), StaticData(buf.data[offset:])
 }
 
 func (buf *bufData) Copy() data {
 	if buf.frozen {
 		return buf
 	} else {
-		b := make([]byte, len(buf.data))
-		copy(b, buf.data)
-		return newBufData(b)
+		return BufData(buf.data)
 	}
 }
 
@@ -123,7 +119,7 @@ type fileData struct {
 
 //it might not be a bad idea to mmap HUGE files on 64bit systems?
 //i mean it is 2021, right?
-func newFileData(fname string) (*fileData, error) {
+func FileData(fname string) (*fileData, error) {
 	var f fileData
 	var use_mmap = true
 	if use_mmap {
