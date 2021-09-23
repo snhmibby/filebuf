@@ -35,15 +35,12 @@ type Buffer struct {
 }
 
 func NewEmpty() *Buffer {
-	t := mkNode(mkBuf([]byte{}))
-	return &Buffer{root: t}
+	return &Buffer{root: mkNode(mkBuf([]byte{}))}
 }
 
 //Use byte array b as source for a filebuffer
 func NewMem(b []byte) *Buffer {
-	d := mkBuf(b)
-	t := mkNode(d)
-	return &Buffer{root: t}
+	return &Buffer{root: mkNode(mkBuf(b))}
 }
 
 //Open file 'f' as source for a filebuffer
@@ -54,8 +51,7 @@ func OpenFile(f string) (*Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := mkNode(d)
-	return &Buffer{root: r}, nil
+	return &Buffer{root: mkNode(d)}, nil
 }
 
 //The size of the FileBuffer in bytes
@@ -100,40 +96,26 @@ func (fb *Buffer) Write(p []byte) (int, error) {
 	return len(p), err
 }
 
-func min(x, y int) int {
-	if x > y {
-		return y
-	} else {
-		return x
-	}
-}
-
 //io.Reader
 func (fb *Buffer) Read(p []byte) (int, error) {
 	var err error
 	if fb.offset >= fb.Size() {
 		return 0, io.EOF
 	}
+	var off int64
 
-	//fb.find(fb.offset)
-	//don't use splay-ing operations
-	node, nodeoffset := fb.root.get(fb.offset)
-	toread := len(p)
-	read := 0
-	for node != nil && toread > 0 {
+	//read root once, then iter down the right subtree
+	newroot, off := fb.root.get(fb.offset)
+	fb.root = splay(newroot)
+	read, err := fb.root.data.ReadAt(p, off)
+
+	fb.root.right.iter(func(t *node) bool {
 		var n int
-		nodesize := node.data.Size()
-		canread := min(int(nodesize-nodeoffset), toread)
-		b := p[read : read+canread]
-		n, err = node.data.ReadAt(b, nodeoffset)
+		n, err = t.data.ReadAt(p[read:], 0)
 		read += n
-		toread -= n
-		if n != canread || err != nil {
-			break
-		}
-		node = node.next()
-		nodeoffset = 0
-	}
+		return err != nil || read >= len(p)
+	})
+
 	if read == 0 && read < len(p) {
 		err = io.EOF
 	} else {
@@ -143,16 +125,11 @@ func (fb *Buffer) Read(p []byte) (int, error) {
 }
 
 //Dump contents to out
-func (fb *Buffer) Dump(out io.Writer) error {
-	for n := fb.root.first(); n != nil; n = n.next() {
-		b := make([]byte, n.data.Size())
-		n.data.ReadAt(b, 0)
-		n, err := out.Write(b)
-		if err != nil || n != len(b) {
-			return err
-		}
-	}
-	return nil
+func (fb *Buffer) Dump(out io.Writer) {
+	fb.root.iter(func(t *node) bool {
+		n, err := t.data.WriteTo(out)
+		return err != nil || n != t.data.Size()
+	})
 }
 
 //Remove size bytes at offset
@@ -195,8 +172,7 @@ func (fb *Buffer) paste(offset int64, paste *Buffer) {
 	fb.findBefore(offset)
 	extra := fb.root.right
 	fb.root.setRight(paste.root)
-	fb.root = splay(fb.root.last())
-	fb.root.setRight(extra)
+	fb.root.last().setRight(extra)
 }
 
 //Paste buf at offset (copies the paste buffer)
@@ -238,7 +214,9 @@ func (fb *Buffer) findBefore(offset int64) {
 		before = fb.root.last()
 	} else {
 		fb.find(offset)
-		before = fb.root.prev()
+		if fb.root.left != nil {
+			before = fb.root.left.last()
+		}
 	}
 	if before == nil {
 		before = mkNode(mkBuf([]byte{}))

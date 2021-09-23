@@ -14,6 +14,7 @@ import (
  */
 type data interface {
 	io.ReaderAt
+	io.WriterTo
 	Size() int64
 	Appendable() bool
 	AppendByte(b byte) //these functions are for editing
@@ -89,6 +90,9 @@ func (buf *bufData) Split(offset int64) (data, data) {
 	copy(newslice, buf.data[offset:])
 	return NewMem(buf.data[:offset]), NewMem(newslice)
 	*/
+	if offset == 0 {
+		return mkBuf([]byte("")), buf
+	}
 	return mkStatic(buf.data[:offset]), mkStatic(buf.data[offset:])
 }
 
@@ -98,6 +102,11 @@ func (buf *bufData) Copy() data {
 	} else {
 		return mkBuf(buf.data)
 	}
+}
+
+func (buf *bufData) WriteTo(out io.Writer) (int64, error) {
+	n, e := out.Write(buf.data)
+	return int64(n), e
 }
 
 func (buf *bufData) Combine(d data) data {
@@ -117,11 +126,20 @@ type fileData struct {
 	size   int64
 }
 
+func (f *fileData) WriteTo(out io.Writer) (int64, error) {
+	b := make([]byte, f.size)
+	n, e := f.file.ReadAt(b, f.offset)
+	return int64(n), e
+}
+
 //it might not be a bad idea to mmap HUGE files on 64bit systems?
 //i mean it is 2021, right?
+//XXX this mmap interface does copying while we just want read-only byte slices :(
+//TODO use another mmap pkg
+//this would improve allocation behaviour in .WriteTo method significantly also
 func mkFileBuf(fname string) (*fileData, error) {
 	var f fileData
-	var use_mmap = true
+	var use_mmap = false
 	if use_mmap {
 		file, err := mmap.Open(fname)
 		if err != nil {

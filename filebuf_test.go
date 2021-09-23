@@ -133,15 +133,7 @@ func TestNewFileBuf(t *testing.T) {
 	}
 	defer os.Remove(testfile2.Name())
 
-	err = b.Dump(testfile2)
-	/*n, err := io.Copy(f, b)
-	if n != int64(len(testdata)) {
-		t.Fatalf("Only copied %d, but expected %d", n, len(testdata))
-	}
-	*/
-	if err != nil {
-		t.Fatalf("Couldn't write %s: %v", testfile2.Name(), err)
-	}
+	b.Dump(testfile2)
 
 	if !compareBuf2File(b, testfile2) {
 		t.Fatal("testfile != testfile2.Name()")
@@ -166,10 +158,7 @@ func TestNewMem(t *testing.T) {
 	}
 	defer os.Remove(testfile.Name())
 
-	err = b.Dump(testfile)
-	if err != nil {
-		t.Fatalf("Couldn't write %s: %v", testfile.Name(), err)
-	}
+	b.Dump(testfile)
 
 	if !compareBuf2File(b, testfile) {
 		t.Fatal("testMemBuf: buffer != testfile")
@@ -312,10 +301,7 @@ func TestCutCopyPaste(t *testing.T) {
 		t.Fatalf("Couldn't open %s: %v", testfile.Name(), err)
 	}
 	defer os.Remove(testfile.Name())
-	err = btest.Dump(testfile)
-	if err != nil {
-		t.Fatalf("Couldn't write %s: %v", testfile.Name(), err)
-	}
+	btest.Dump(testfile)
 
 	if b.Size() != btest.Size() {
 		t.Fatalf("TestCutCopyPaste: size didn't return to original size")
@@ -650,6 +636,22 @@ func BenchmarkInsertCutPasteR3(b *testing.B) {
 			size := benchInt64(buf.Len() - offs)
 			buf = R3.Delete(buf, offs, size)
 		}
+	}
+}
+
+func BenchmarkCopyR3(b *testing.B) {
+	text := string(benchText)
+	startBench(b)
+	buf := R3.New("")
+	for i := 0; i < b.N; i++ {
+		off := benchInt64(buf.Len())
+		buf = R3Insert(buf, off, text)
+	}
+
+	for i := 0; i < b.N; i++ {
+		off := benchInt64(buf.Len())
+		sz := benchInt64(buf.Len() - off)
+		_ = R3.Slice(buf, off, off+sz)
 	}
 }
 

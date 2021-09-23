@@ -15,13 +15,12 @@ func mkNode(d data) *node {
 func (t *node) Copy() *node {
 	if t == nil {
 		return nil
-	} else {
-		n := *t
-		n.data = n.data.Copy()
-		n.setLeft(n.left.Copy())
-		n.setRight(n.right.Copy())
-		return &n
 	}
+	n := *t
+	n.data = n.data.Copy()
+	n.setLeft(n.left.Copy())
+	n.setRight(n.right.Copy())
+	return &n
 }
 
 /* The set{Left, Right, Parent} functions should be used,
@@ -78,30 +77,23 @@ func (node *node) last() *node {
 	return n
 }
 
-func (node *node) next() *node {
-	n := node
-	if n.right != nil {
-		n = n.right.first()
-	} else {
-		for n.parent != nil && n.parent.right == n {
-			n = n.parent
-		}
-		n = n.parent
+func (n *node) iter(cb func(*node) bool) bool {
+	if n == nil {
+		return false
 	}
-	return n
+	stop := n.left.iter(cb)
+	stop = stop || cb(n)
+	return stop || n.right.iter(cb)
 }
 
-func (node *node) prev() *node {
-	n := node
-	if n.left != nil {
-		n = n.left.last()
-	} else {
-		for n.parent != nil && n.parent.left == n {
-			n = n.parent
-		}
-		n = n.parent
-	}
-	return n
+//helper functions for determining where to go in the tree based on offset
+func goleft(offset int64, t *node) bool {
+	return offset < nodesize(t.left)
+}
+
+func goright(offset int64, t *node) bool {
+	nodeOff := offset - nodesize(t.left)
+	return nodeOff >= t.data.Size()
 }
 
 //get the node that contains the requested offset
