@@ -126,12 +126,6 @@ type fileData struct {
 	size   int64
 }
 
-func (f *fileData) WriteTo(out io.Writer) (int64, error) {
-	b := make([]byte, f.size)
-	n, e := f.file.ReadAt(b, f.offset)
-	return int64(n), e
-}
-
 //it might not be a bad idea to mmap HUGE files on 64bit systems?
 //i mean it is 2021, right?
 //XXX this mmap interface does copying while we just want read-only byte slices :(
@@ -209,6 +203,12 @@ func (f *fileData) Split(offset int64) (data, data) {
 
 func (f *fileData) Copy() data {
 	return f
+}
+
+func (f *fileData) WriteTo(out io.Writer) (int64, error) {
+	b := make([]byte, f.size)
+	n, e := f.file.ReadAt(b, f.offset)
+	return int64(n), e
 }
 
 func (f *fileData) Combine(d data) data {
