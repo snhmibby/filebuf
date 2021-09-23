@@ -1,18 +1,18 @@
 package filebuf
 
-/* A binary tree that holds Data */
-type tree struct {
-	left, right, parent *tree
+/* A binary node that holds Data */
+type node struct {
+	left, right, parent *node
 	data                data
 	size                int64 //left.size + data.size + right.size
 }
 
-func newTree(d data) *tree {
-	return &tree{data: d, size: d.Size()}
+func newTree(d data) *node {
+	return &node{data: d, size: d.Size()}
 }
 
-//Copy this tree
-func (t *tree) Copy() *tree {
+//Copy this node
+func (t *node) Copy() *node {
 	if t == nil {
 		return nil
 	} else {
@@ -27,7 +27,7 @@ func (t *tree) Copy() *tree {
 /* The set{Left, Right, Parent} functions should be used,
  * because they take into account updating the size field */
 
-func (t *tree) setLeft(l *tree) {
+func (t *node) setLeft(l *node) {
 	t.left = l
 	if t.left != nil {
 		t.left.parent = t
@@ -35,7 +35,7 @@ func (t *tree) setLeft(l *tree) {
 	t.resetSize()
 }
 
-func (t *tree) setRight(r *tree) {
+func (t *node) setRight(r *node) {
 	t.right = r
 	if t.right != nil {
 		t.right.parent = t
@@ -43,26 +43,26 @@ func (t *tree) setRight(r *tree) {
 	t.resetSize()
 }
 
-func (t *tree) setParent(p *tree) {
+func (t *node) setParent(p *node) {
 	t.parent = p
 	if t.parent != nil {
 		t.parent.resetSize()
 	}
 }
 
-func (t *tree) resetSize() {
-	t.size = treesize(t.left) + t.data.Size() + treesize(t.right)
+func (t *node) resetSize() {
+	t.size = nodesize(t.left) + t.data.Size() + nodesize(t.right)
 }
 
 //helper function to query t.size, return 0 on t == nil
-func treesize(t *tree) int64 {
+func nodesize(t *node) int64 {
 	if t != nil {
 		return t.size
 	}
 	return 0
 }
 
-func (node *tree) first() *tree {
+func (node *node) first() *node {
 	n := node
 	for n.left != nil {
 		n = n.left
@@ -70,7 +70,7 @@ func (node *tree) first() *tree {
 	return n
 }
 
-func (node *tree) last() *tree {
+func (node *node) last() *node {
 	n := node
 	for n.right != nil {
 		n = n.right
@@ -78,7 +78,7 @@ func (node *tree) last() *tree {
 	return n
 }
 
-func (node *tree) next() *tree {
+func (node *node) next() *node {
 	n := node
 	if n.right != nil {
 		n = n.right.first()
@@ -91,7 +91,7 @@ func (node *tree) next() *tree {
 	return n
 }
 
-func (node *tree) prev() *tree {
+func (node *node) prev() *node {
 	n := node
 	if n.left != nil {
 		n = n.left.last()
@@ -105,11 +105,11 @@ func (node *tree) prev() *tree {
 }
 
 //get the node that contains the requested offset
-func (node *tree) get(offset int64) (*tree, int64) {
+func (node *node) get(offset int64) (*node, int64) {
 	if offset > node.size {
-		panic("tree.get; offset > node.size")
+		panic("node.get; offset > node.size")
 	}
-	offsetInNode := offset - treesize(node.left)
+	offsetInNode := offset - nodesize(node.left)
 	nodeSize := node.data.Size()
 	switch {
 	case offsetInNode < 0:
@@ -137,7 +137,7 @@ func updateAvg(avg float64, n_, val_ int64) float64 {
 	return (oldsum + val) / (n + 1)
 }
 
-func (t *tree) stats(st *Stats, depth int64) {
+func (t *node) stats(st *Stats, depth int64) {
 	if t != nil {
 		t.left.stats(st, depth+1)
 		t.right.stats(st, depth+1)
@@ -178,7 +178,7 @@ func (t *tree) stats(st *Stats, depth int64) {
  *          / \       a   b
  *         b   c
  */
-func rotateLeft(x *tree) {
+func rotateLeft(x *node) {
 	y := x.right
 	if y != nil {
 		x.setRight(y.left)
@@ -204,7 +204,7 @@ func rotateLeft(x *tree) {
  *          / \       a   b
  *         b   c
  */
-func rotateRight(x *tree) {
+func rotateRight(x *node) {
 	y := x.left
 	if y != nil {
 		x.setLeft(y.right)
@@ -223,7 +223,7 @@ func rotateRight(x *tree) {
 }
 
 //see https://en.wikipedia.org/wiki/Splay_tree
-func splay(x *tree) *tree {
+func splay(x *node) *node {
 	for x.parent != nil {
 		if x.parent.parent == nil {
 			if x == x.parent.left {
