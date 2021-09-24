@@ -25,7 +25,7 @@ import (
 	R4 "github.com/zyedidia/rope"
 )
 
-const TESTDATA_REPEAT = 5000
+const TESTDATA_REPEAT = 20000
 
 var helloworld = []byte("Hello World!\n")
 var testdata_line2 = []byte("this is some testdata.\n")
@@ -322,8 +322,8 @@ func TestCutCopyPaste(t *testing.T) {
 		c1.Paste(o2, p2)
 		b.Paste(o1, p1)
 	}
-	//btest.Stats("Normal testdata")
-	//b.Stats("Chopped up testdata (lot of cuts & pastes)")
+	btest.Stats("Normal testdata")
+	b.Stats("Chopped up testdata (lot of cuts & pastes)")
 
 	if !compareBuf2File(b, testfile) {
 		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")

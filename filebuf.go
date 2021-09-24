@@ -15,8 +15,7 @@ package filebuf
 /* TODO:
  * - be consistent with panics or returning error
  * - smart writing back to original file (.Save()... operation)
- * - maintain undo/redo queue
- * - string/regex searching
+ * - maintain undo/redo queue?
  * - allow for combining nodes if possible
  *   having many small nodes eats memory and grows the tree so everyting bogs down.
  *   having bigger nodes make it a lot faster.
@@ -109,15 +108,17 @@ func (fb *Buffer) Read(p []byte) (int, error) {
 	fb.root = splay(newroot)
 	read, err := fb.root.data.ReadAt(p, off)
 
-	fb.root.right.iter(func(t *node) bool {
-		var n int
-		n, err = t.data.ReadAt(p[read:], 0)
-		read += n
-		return err != nil || read >= len(p)
-	})
+	if err == nil && read < len(p) {
+		fb.root.right.iter(func(t *node) bool {
+			var n int
+			n, err = t.data.ReadAt(p[read:], 0)
+			read += n
+			return err != nil || read >= len(p)
+		})
+	}
 
-	if read == 0 && read < len(p) {
-		err = io.EOF
+	if read == 0 && read < len(p) && err == nil {
+		panic("*Buffer.Read didn't read enough??")
 	} else {
 		fb.offset += int64(read)
 	}
@@ -172,7 +173,8 @@ func (fb *Buffer) paste(offset int64, paste *Buffer) {
 	fb.findBefore(offset)
 	extra := fb.root.right
 	fb.root.setRight(paste.root)
-	fb.root.last().setRight(extra)
+	fb.root = splay(fb.root.last())
+	fb.root.setRight(extra)
 }
 
 //Paste buf at offset (copies the paste buffer)

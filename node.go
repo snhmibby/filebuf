@@ -61,16 +61,14 @@ func nodesize(t *node) int64 {
 	return 0
 }
 
-func (node *node) first() *node {
-	n := node
+func (n *node) first() *node {
 	for n.left != nil {
 		n = n.left
 	}
 	return n
 }
 
-func (node *node) last() *node {
-	n := node
+func (n *node) last() *node {
 	for n.right != nil {
 		n = n.right
 	}
