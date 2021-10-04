@@ -13,6 +13,7 @@ package filebuf
 */
 
 /* TODO:
+ * - make Write less inefficient, esp in the case of writing 1 byte
  * - be consistent with panics or returning error
  * - smart writing back to original file (.Save()... operation)
  * - maintain undo/redo queue?
@@ -273,7 +274,7 @@ func (fb *Buffer) makeAppendable() {
 }
 
 func (fb *Buffer) Stats(name string) {
-	var st Stats
+	var st stats
 	st.minsz = fb.Size() + 1
 	fb.root.stats(&st, 0)
 	fmt.Printf("\n----- STATS FOR BUFFER %s\nsize = %d\n", name, st.size)

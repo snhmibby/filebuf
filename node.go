@@ -111,7 +111,7 @@ func (node *node) get(offset int64) (*node, int64) {
 	}
 }
 
-type Stats struct {
+type stats struct {
 	size                                      int64
 	numnodes, filenodes, datanodes, fixeddata int64
 	maxdist                                   int64   //max distance to root
@@ -127,7 +127,7 @@ func updateAvg(avg float64, n_, val_ int64) float64 {
 	return (oldsum + val) / (n + 1)
 }
 
-func (t *node) stats(st *Stats, depth int64) {
+func (t *node) stats(st *stats, depth int64) {
 	if t != nil {
 		t.left.stats(st, depth+1)
 		t.right.stats(st, depth+1)
