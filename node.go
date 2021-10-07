@@ -79,9 +79,13 @@ func (n *node) iter(cb func(*node) bool) bool {
 	if n == nil {
 		return false
 	}
-	stop := n.left.iter(cb)
-	stop = stop || cb(n)
-	return stop || n.right.iter(cb)
+	if n.left.iter(cb) {
+		return true
+	}
+	if cb(n) {
+		return true
+	}
+	return n.right.iter(cb)
 }
 
 //helper functions for determining where to go in the tree based on offset

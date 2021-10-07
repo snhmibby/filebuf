@@ -67,6 +67,9 @@ func compareBuf2File(b *Buffer, f io.ReadSeeker) bool {
 func compareBuf2Bytes(b *Buffer, s []byte) bool {
 	buf := make([]byte, 1)
 	b.Seek(0, io.SeekStart)
+	if b.Size() != int64(len(s)) {
+		return false
+	}
 	for i := 0; i < len(s); i++ {
 		b.Read(buf)
 		if buf[0] != s[i] {
@@ -397,7 +400,7 @@ func TestIter(t *testing.T) {
 	buf := bytes.NewBuffer([]byte{})
 	b.Iter(func(slice []byte) bool {
 		buf.Write(slice)
-		return true
+		return false
 	})
 	if !compareBuf2Bytes(b, buf.Bytes()) {
 		t.Fatal("Iter doesn't match compare function")
