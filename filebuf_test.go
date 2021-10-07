@@ -388,8 +388,22 @@ func TestFileBufVsOtherImplementation(t *testing.T) {
 	if !compareBuf2Bytes(b, b2Bytes) {
 		t.Fatal("buffer contents doesn't match other implementation after deletions")
 	}
-
 }
+
+func TestIter(t *testing.T) {
+	b := NewEmpty()
+	createTestData(b)
+
+	buf := bytes.NewBuffer([]byte{})
+	b.Iter(func(slice []byte) bool {
+		buf.Write(slice)
+		return true
+	})
+	if !compareBuf2Bytes(b, buf.Bytes()) {
+		t.Fatal("Iter doesn't match compare function")
+	}
+}
+
 func TestMemBufVsOtherImplementation(t *testing.T) {
 	//R2 seems solid
 	b := NewEmpty()

@@ -16,7 +16,6 @@ package filebuf
  * - make Write less inefficient, esp in the case of writing 1 byte
  * - be consistent with panics or returning error
  * - smart writing back to original file (.Save()... operation)
- * - maintain undo/redo queue?
  * - allow for combining nodes if possible
  *   having many small nodes eats memory and grows the tree so everyting bogs down.
  *   having bigger nodes make it a lot faster.
@@ -281,4 +280,37 @@ func (fb *Buffer) Stats(name string) {
 	fmt.Printf("stats.numnodes=%d (file: %d, data: %d (fixed: %d))\n", st.numnodes, st.filenodes, st.datanodes, st.fixeddata)
 	fmt.Printf("avg node size: %f (min: %d, max: %d)\n", st.avgsz, st.minsz, st.maxsz)
 	fmt.Printf("maxdepth: %d (avg: %f)\n", st.maxdist, st.avgdist)
+}
+
+//iterate over the file, give the cb byte slices for READING ONLY
+func (fb *Buffer) Iter(cb func([]byte) bool) {
+	fb.IterFrom(0, cb)
+}
+
+//Same as Iter, but start at offset
+func (fb *Buffer) IterFrom(from int64, cb func([]byte) bool) {
+	fb.root.iter(func(n *node) bool {
+		var stop = false
+		switch n.data.(type) {
+		case *fileData:
+			//if region is big, split into chunks
+			f := n.data.(*fileData)
+			var done int64 = 0
+			buf := make([]byte, maxBufLen)
+			for !stop && done < f.size {
+				if f.size-done < maxBufLen {
+					buf = buf[:f.size-done]
+				}
+				n, err := f.file.ReadAt(buf, f.offset+done)
+				done += int64(n)
+				stop = cb(buf[:n])
+				if err != nil {
+					stop = stop || done != f.size
+				}
+			}
+		case *bufData:
+			stop = cb(n.data.(*bufData).data)
+		}
+		return stop
+	})
 }
