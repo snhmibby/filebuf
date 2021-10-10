@@ -25,10 +25,12 @@ package filebuf
 import (
 	"fmt"
 	"io"
+	"sync"
 )
 
 //implements io.ReadWriteSeeker
 type Buffer struct {
+	lock   sync.Mutex //very coarse thread safety
 	root   *node
 	offset int64 //to implement io.ReaderSeeker
 }
@@ -53,13 +55,101 @@ func OpenFile(f string) (*Buffer, error) {
 	return &Buffer{root: mkNode(d)}, nil
 }
 
-//The size of the FileBuffer in bytes
+/*
+ * Simple Thread Safe Interface
+ */
+
 func (fb *Buffer) Size() int64 {
-	return fb.root.size
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.size()
 }
 
 //io.Seeker
 func (fb *Buffer) Seek(offset int64, whence int) (int64, error) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.seek(offset, whence)
+}
+
+//io.Writer
+func (fb *Buffer) Write(p []byte) (int, error) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.write(p)
+}
+
+//io.Reader
+func (fb *Buffer) Read(p []byte) (int, error) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.read(p)
+}
+
+//Dump contents to out
+func (fb *Buffer) Dump(out io.Writer) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	fb.dump(out)
+}
+
+func (fb *Buffer) Remove(offset int64, size int64) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	fb.remove(offset, size)
+}
+
+//Cut size bytes at offset
+func (fb *Buffer) Cut(offset int64, size int64) *Buffer {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.cut(offset, size)
+}
+
+//Copy size bytes at offset
+func (fb *Buffer) Copy(offset int64, size int64) *Buffer {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.copy(offset, size)
+}
+
+//Paste buf at offset (copies the paste buffer)
+func (fb *Buffer) Paste(offset int64, paste *Buffer) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	fb.paste(offset, paste)
+}
+
+//Insert a byte slice
+func (fb *Buffer) Insert(offset int64, bs []byte) error {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.insert(offset, bs)
+}
+
+//Insert 1 byte
+func (fb *Buffer) Insert1(offset int64, b byte) error {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	return fb.insert1(offset, b)
+}
+
+//iterate over the file, give the callback byte slices for READING ONLY
+func (fb *Buffer) Iter(cb func([]byte) bool) {
+	fb.IterFrom(0, cb)
+}
+
+//Same as Iter, but start at offset
+func (fb *Buffer) IterFrom(from int64, cb func([]byte) bool) {
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	fb.iterFrom(from, cb)
+}
+
+/*
+ * interface implementation
+ */
+func (fb *Buffer) seek(offset int64, whence int) (int64, error) {
 	var newoff int64
 	switch {
 	case whence == io.SeekStart:
@@ -67,38 +157,41 @@ func (fb *Buffer) Seek(offset int64, whence int) (int64, error) {
 	case whence == io.SeekCurrent:
 		newoff = fb.offset + offset
 	case whence == io.SeekEnd:
-		newoff = fb.Size() + offset
+		newoff = fb.size() + offset
 	}
-	if newoff < 0 || newoff > fb.Size() {
-		//actually fb.offset > fb.Size() should be legal, but meh
+	if newoff < 0 || newoff > fb.size() {
+		//actually fb.offset > fb.size() should be legal, but meh
 		return fb.offset, fmt.Errorf("FileBuffer.Seek() bad offset (%d)", newoff)
 	}
 	fb.offset = newoff
 	return fb.offset, nil
 }
 
-//io.Writer
-func (fb *Buffer) Write(p []byte) (int, error) {
+//The size of the FileBuffer in bytes
+func (fb *Buffer) size() int64 {
+	return fb.root.size
+}
+
+func (fb *Buffer) write(p []byte) (int, error) {
 	plen := int64(len(p))
 
-	if plen+fb.offset < fb.Size() {
-		fb.Remove(fb.offset, plen)
+	if plen+fb.offset < fb.size() {
+		fb.remove(fb.offset, plen)
 	} else {
-		if fb.offset > fb.Size() {
+		if fb.offset > fb.size() {
 			return 0, fmt.Errorf("FileBuffer.Write: Attempt to write past EOF")
-		} else if fb.offset < fb.Size() {
-			fb.Remove(fb.offset, fb.Size()-fb.offset)
+		} else if fb.offset < fb.size() {
+			fb.remove(fb.offset, fb.size()-fb.offset)
 		}
 	}
-	err := fb.Insert(fb.offset, p)
+	err := fb.insert(fb.offset, p)
 	fb.offset += int64(len(p))
 	return len(p), err
 }
 
-//io.Reader
-func (fb *Buffer) Read(p []byte) (int, error) {
+func (fb *Buffer) read(p []byte) (int, error) {
 	var err error
-	if fb.offset >= fb.Size() {
+	if fb.offset >= fb.size() {
 		return 0, io.EOF
 	}
 	var off int64
@@ -125,8 +218,7 @@ func (fb *Buffer) Read(p []byte) (int, error) {
 	return read, err
 }
 
-//Dump contents to out
-func (fb *Buffer) Dump(out io.Writer) {
+func (fb *Buffer) dump(out io.Writer) {
 	fb.root.iter(func(t *node) bool {
 		n, err := t.data.WriteTo(out)
 		return err != nil || n != t.data.Size()
@@ -134,13 +226,12 @@ func (fb *Buffer) Dump(out io.Writer) {
 }
 
 //Remove size bytes at offset
-func (fb *Buffer) Remove(offset int64, size int64) {
-	fb.Cut(offset, size)
+func (fb *Buffer) remove(offset int64, size int64) {
+	fb.cut(offset, size)
 }
 
-//Cut size bytes at offset
-func (fb *Buffer) Cut(offset int64, size int64) *Buffer {
-	if offset < 0 || offset > fb.Size() || fb.Size() < offset+size {
+func (fb *Buffer) cut(offset int64, size int64) *Buffer {
+	if offset < 0 || offset > fb.size() || fb.size() < offset+size {
 		panic("FileBuffer.Cut: bad offset")
 	}
 
@@ -156,42 +247,37 @@ func (fb *Buffer) Cut(offset int64, size int64) *Buffer {
 	cut.root.setRight(nil)
 	return cut
 }
-
-//Copy size bytes at offset
-func (fb *Buffer) Copy(offset int64, size int64) *Buffer {
-	if offset < 0 || offset > fb.Size() || fb.Size() < offset+size {
+func (fb *Buffer) copy(offset int64, size int64) *Buffer {
+	if offset < 0 || offset > fb.size() || fb.size() < offset+size {
 		panic("FileBuffer.Copy(): offset or size out of bounds")
 	}
-	tmpCut := fb.Cut(offset, size)
+	tmpCut := fb.cut(offset, size)
 	cpy := &Buffer{root: tmpCut.root.Copy()}
-	fb.paste(offset, tmpCut)
+	fb.destuctivePaste(offset, tmpCut)
 	return cpy
 }
 
-//"destructive join" paste buffer into fb
-func (fb *Buffer) paste(offset int64, paste *Buffer) {
+//"destructive join" destuctivePaste buffer into fb
+func (fb *Buffer) destuctivePaste(offset int64, paste *Buffer) {
 	fb.findBefore(offset)
 	extra := fb.root.right
 	fb.root.setRight(paste.root)
 	fb.root = splay(fb.root.last())
 	fb.root.setRight(extra)
 }
-
-//Paste buf at offset (copies the paste buffer)
-func (fb *Buffer) Paste(offset int64, paste *Buffer) {
+func (fb *Buffer) paste(offset int64, paste *Buffer) {
 	if paste != nil && paste.Size() > 0 {
-		p := *paste
-		p.root = p.root.Copy()
-		fb.paste(offset, &p)
+		p := Buffer{root: paste.root.Copy()}
+		fb.destuctivePaste(offset, &p)
 	}
 }
 
 //Make the root node start exactly at offset (if possible)
-//0 <= offset <= fb.Size()
+//0 <= offset <= fb.size()
 func (fb *Buffer) find(offset int64) {
 	if offset < 0 {
 		panic("FileBuffer.find(): offset < 0")
-	} else if offset > fb.Size() {
+	} else if offset > fb.size() {
 		panic("FileBuffer.find(): offset > filesize")
 	}
 	node, nodeOffset := fb.root.get(offset)
@@ -212,7 +298,7 @@ func (fb *Buffer) find(offset int64) {
 //i.e. appending to the root node would insert at offset
 func (fb *Buffer) findBefore(offset int64) {
 	var before *node
-	if offset >= fb.Size() {
+	if offset >= fb.size() {
 		before = fb.root.last()
 	} else {
 		fb.find(offset)
@@ -227,10 +313,10 @@ func (fb *Buffer) findBefore(offset int64) {
 	fb.root = splay(before)
 }
 
-func (fb *Buffer) Insert(offset int64, bs []byte) error {
+func (fb *Buffer) insert(offset int64, bs []byte) error {
 	if offset < 0 {
 		return fmt.Errorf("FileBuffer.Insertbytes offset < 0")
-	} else if offset > fb.Size() {
+	} else if offset > fb.size() {
 		return fmt.Errorf("FileBuffer.Insertbytes(): offset > FileBuffer.Size()")
 	}
 
@@ -241,10 +327,10 @@ func (fb *Buffer) Insert(offset int64, bs []byte) error {
 	return nil
 }
 
-func (fb *Buffer) Insert1(offset int64, b byte) error {
+func (fb *Buffer) insert1(offset int64, b byte) error {
 	if offset < 0 {
 		return fmt.Errorf("FileBuffer.Insertbyte offset < 0")
-	} else if offset > fb.Size() {
+	} else if offset > fb.size() {
 		return fmt.Errorf("FileBuffer.Insertbyte(): offset > FileBuffer.Size()")
 	}
 
@@ -272,9 +358,9 @@ func (fb *Buffer) makeAppendable() {
 	}
 }
 
-func (fb *Buffer) Stats(name string) {
+func (fb *Buffer) stats(name string) {
 	var st stats
-	st.minsz = fb.Size() + 1
+	st.minsz = fb.size() + 1
 	fb.root.stats(&st, 0)
 	fmt.Printf("\n----- STATS FOR BUFFER %s\nsize = %d\n", name, st.size)
 	fmt.Printf("stats.numnodes=%d (file: %d, data: %d (fixed: %d))\n", st.numnodes, st.filenodes, st.datanodes, st.fixeddata)
@@ -282,13 +368,7 @@ func (fb *Buffer) Stats(name string) {
 	fmt.Printf("maxdepth: %d (avg: %f)\n", st.maxdist, st.avgdist)
 }
 
-//iterate over the file, give the cb byte slices for READING ONLY
-func (fb *Buffer) Iter(cb func([]byte) bool) {
-	fb.IterFrom(0, cb)
-}
-
-//Same as Iter, but start at offset
-func (fb *Buffer) IterFrom(from int64, cb func([]byte) bool) {
+func (fb *Buffer) iterFrom(from int64, cb func([]byte) bool) {
 	fb.root.iter(func(n *node) bool {
 		var stop = false
 		switch n.data.(type) {

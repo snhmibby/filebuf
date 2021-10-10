@@ -325,8 +325,8 @@ func TestCutCopyPaste(t *testing.T) {
 		c1.Paste(o2, p2)
 		b.Paste(o1, p1)
 	}
-	btest.Stats("Normal testdata")
-	b.Stats("Chopped up testdata (lot of cuts & pastes)")
+	btest.stats("Normal testdata")
+	b.stats("Chopped up testdata (lot of cuts & pastes)")
 
 	if !compareBuf2File(b, testfile) {
 		t.Fatal("TestCutCopyPaste: after everything, buffer != testfile")
