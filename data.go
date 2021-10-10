@@ -27,7 +27,7 @@ type data interface {
 //[]Byte buffered data
 type bufData struct {
 	data   []byte
-	frozen bool //freeze on splitting or after 1kb of data
+	frozen bool
 }
 
 const maxBufLen = 4096
