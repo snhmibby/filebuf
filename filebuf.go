@@ -247,6 +247,7 @@ func (fb *Buffer) cut(offset int64, size int64) *Buffer {
 	cut.root.setRight(nil)
 	return cut
 }
+
 func (fb *Buffer) copy(offset int64, size int64) *Buffer {
 	if offset < 0 || offset > fb.size() || fb.size() < offset+size {
 		panic("FileBuffer.Copy(): offset or size out of bounds")
@@ -265,6 +266,7 @@ func (fb *Buffer) destuctivePaste(offset int64, paste *Buffer) {
 	fb.root = splay(fb.root.last())
 	fb.root.setRight(extra)
 }
+
 func (fb *Buffer) paste(offset int64, paste *Buffer) {
 	if paste != nil && paste.Size() > 0 {
 		p := Buffer{root: paste.root.Copy()}
